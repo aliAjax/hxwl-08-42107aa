@@ -1,7 +1,8 @@
 import "./styles.css";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
 import AromaLexicon from "./components/AromaLexicon";
+import { aromaKeywords } from "./data/aromaData";
 
 const project = {
   "id": "hxwl-08",
@@ -77,12 +78,31 @@ function MetricCard({ label, value, index }: { label: string; value: string; ind
 
 function App() {
   const [selectedAroma, setSelectedAroma] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: "warn" | "info" } | null>(null);
   const lexiconRef = useRef<HTMLElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, tone: "warn" | "info" = "warn") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, tone });
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   const handleAromaClick = useCallback((aroma: string) => {
+    const found = aromaKeywords.some((k) => k.name === aroma);
+    if (!found) {
+      showToast(`词库中暂无「${aroma}」的详细解析`, "warn");
+      return;
+    }
     setSelectedAroma(aroma);
     lexiconRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
+  }, [showToast]);
 
   const handleAromaViewed = useCallback(() => {
     setSelectedAroma(null);
@@ -194,6 +214,19 @@ function App() {
           })}
         </div>
       </section>
+
+      {toast && (
+        <div
+          className={`aroma-toast aroma-toast-${toast.tone}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="aroma-toast-icon">
+            {toast.tone === "warn" ? "⚠️" : "ℹ️"}
+          </span>
+          <span className="aroma-toast-text">{toast.message}</span>
+        </div>
+      )}
     </main>
   );
 }

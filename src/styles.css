@@ -756,6 +756,56 @@ input {
   transform: translateY(-1px);
 }
 
+.aroma-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(420px, calc(100% - 32px));
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--warn);
+  z-index: 200;
+  animation: toastIn 0.25s ease;
+}
+
+.aroma-toast-warn {
+  border-left-color: var(--warn);
+}
+
+.aroma-toast-info {
+  border-left-color: var(--accent);
+}
+
+.aroma-toast-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.aroma-toast-text {
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 @media (max-width: 860px) {
   .hero,
   .workspace,

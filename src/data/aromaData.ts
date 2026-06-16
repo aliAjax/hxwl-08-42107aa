@@ -39,6 +39,13 @@ export const aromaKeywords: AromaKeyword[] = [
     regions: ["勃艮第", "基安蒂", "博若莱"]
   },
   {
+    name: "樱桃",
+    category: "水果",
+    description: "樱桃是内比奥罗的经典果香之一，介于红樱桃与黑樱桃之间，常与玫瑰花香和焦油气息搭配出现，是巴罗洛和巴巴莱斯科的标志性果味表现。",
+    grapes: ["内比奥罗", "桑娇维塞", "黑皮诺"],
+    regions: ["巴罗洛", "巴巴莱斯科", "基安蒂"]
+  },
+  {
     name: "酸樱桃",
     category: "水果",
     description: "酸樱桃比甜樱桃更具酸度感，是桑娇维塞的标志性香气，常见于意大利中部的高酸度红葡萄酒。",
