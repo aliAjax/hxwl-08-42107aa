@@ -1,6 +1,7 @@
 export interface WineCard {
   id: string;
   region: string;
+  country: string;
   grape: string;
   acidity: string;
   tannin: string;
@@ -15,6 +16,7 @@ export const wineCards: WineCard[] = [
   {
     id: "bordeaux-left-bank",
     region: "波尔多左岸",
+    country: "法国",
     grape: "赤霞珠",
     acidity: "中高",
     tannin: "高",
@@ -27,6 +29,7 @@ export const wineCards: WineCard[] = [
   {
     id: "bourgogne-village",
     region: "勃艮第村级",
+    country: "法国",
     grape: "黑皮诺",
     acidity: "高",
     tannin: "低",
@@ -39,6 +42,7 @@ export const wineCards: WineCard[] = [
   {
     id: "rioja-reserva",
     region: "里奥哈",
+    country: "西班牙",
     grape: "丹魄",
     acidity: "中等",
     tannin: "中高",
@@ -51,6 +55,7 @@ export const wineCards: WineCard[] = [
   {
     id: "napa-cabernet",
     region: "纳帕谷",
+    country: "美国",
     grape: "赤霞珠",
     acidity: "中等",
     tannin: "高",
@@ -63,6 +68,7 @@ export const wineCards: WineCard[] = [
   {
     id: "chianti-classico",
     region: "基安蒂经典",
+    country: "意大利",
     grape: "桑娇维塞",
     acidity: "高",
     tannin: "中高",
@@ -75,6 +81,7 @@ export const wineCards: WineCard[] = [
   {
     id: "barolo",
     region: "巴罗洛",
+    country: "意大利",
     grape: "内比奥罗",
     acidity: "高",
     tannin: "极高",
@@ -87,6 +94,7 @@ export const wineCards: WineCard[] = [
   {
     id: "malbec-mendoza",
     region: "门多萨",
+    country: "阿根廷",
     grape: "马尔贝克",
     acidity: "中等",
     tannin: "中高",
@@ -99,6 +107,7 @@ export const wineCards: WineCard[] = [
   {
     id: "shiraz-barossa",
     region: "巴罗萨谷",
+    country: "澳大利亚",
     grape: "西拉",
     acidity: "中低",
     tannin: "中高",
@@ -111,6 +120,7 @@ export const wineCards: WineCard[] = [
   {
     id: "sancerre",
     region: "桑塞尔",
+    country: "法国",
     grape: "长相思",
     acidity: "极高",
     tannin: "无",
@@ -123,6 +133,7 @@ export const wineCards: WineCard[] = [
   {
     id: "chablis",
     region: "夏布利",
+    country: "法国",
     grape: "霞多丽",
     acidity: "高",
     tannin: "无",
@@ -132,4 +143,18 @@ export const wineCards: WineCard[] = [
     alcohol: "12.5%-13.5%",
     explanation: "勃艮第夏布利霞多丽未经橡木桶或仅轻微橡木影响，高酸度、矿物感突出，带有青苹果和燧石的冷凉气候特征。"
   }
+];
+
+export interface RegionScopeOption {
+  value: string;
+  label: string;
+  countries: string[];
+}
+
+export const regionScopes: RegionScopeOption[] = [
+  { value: "all", label: "全部产区", countries: [] },
+  { value: "france", label: "法国", countries: ["法国"] },
+  { value: "italy", label: "意大利", countries: ["意大利"] },
+  { value: "spain", label: "西班牙", countries: ["西班牙"] },
+  { value: "new-world", label: "新世界", countries: ["美国", "阿根廷", "澳大利亚"] },
 ];

@@ -1,6 +1,7 @@
 import "./styles.css";
 import { useState, useRef, useCallback, useEffect } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
+import BlindQuiz from "./components/BlindQuiz";
 import AromaLexicon from "./components/AromaLexicon";
 import ReviewPlan, { ReviewRecord } from "./components/ReviewPlan";
 import { aromaKeywords } from "./data/aromaData";
@@ -177,6 +178,8 @@ function App() {
       </section>
 
       <BlindTastingCard onAromaClick={handleAromaClick} />
+
+      <BlindQuiz onAromaClick={handleAromaClick} />
 
       <AromaLexicon
         ref={lexiconRef}
