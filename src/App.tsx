@@ -2,6 +2,7 @@ import "./styles.css";
 import { useState, useRef, useCallback, useEffect } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
 import AromaLexicon from "./components/AromaLexicon";
+import ReviewPlan, { ReviewRecord } from "./components/ReviewPlan";
 import { aromaKeywords } from "./data/aromaData";
 
 const project = {
@@ -107,6 +108,13 @@ function App() {
   const handleAromaViewed = useCallback(() => {
     setSelectedAroma(null);
   }, []);
+
+  const reviewRecords: ReviewRecord[] = project.records.map((record) => ({
+    name: record[0],
+    grape: record[1],
+    characteristic: record[2],
+    aromas: record[3]?.split("、").map((a) => a.trim()).filter(Boolean) || [],
+  }));
 
   const values = project.metrics.map((metric: string, index: number) => {
     const base = [84, 12, 31, 7][index % 4];
@@ -214,6 +222,8 @@ function App() {
           })}
         </div>
       </section>
+
+      <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} />
 
       {toast && (
         <div
