@@ -1,5 +1,7 @@
 import "./styles.css";
+import { useState, useRef, useCallback } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
+import AromaLexicon from "./components/AromaLexicon";
 
 const project = {
   "id": "hxwl-08",
@@ -74,6 +76,18 @@ function MetricCard({ label, value, index }: { label: string; value: string; ind
 }
 
 function App() {
+  const [selectedAroma, setSelectedAroma] = useState<string | null>(null);
+  const lexiconRef = useRef<HTMLElement>(null);
+
+  const handleAromaClick = useCallback((aroma: string) => {
+    setSelectedAroma(aroma);
+    lexiconRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const handleAromaViewed = useCallback(() => {
+    setSelectedAroma(null);
+  }, []);
+
   const values = project.metrics.map((metric: string, index: number) => {
     const base = [84, 12, 31, 7][index % 4];
     return String(base + index * 3);
@@ -134,7 +148,13 @@ function App() {
         </section>
       </section>
 
-      <BlindTastingCard />
+      <BlindTastingCard onAromaClick={handleAromaClick} />
+
+      <AromaLexicon
+        ref={lexiconRef}
+        selectedAroma={selectedAroma}
+        onAromaViewed={handleAromaViewed}
+      />
 
       <section className="records panel">
         <div className="section-heading">
@@ -145,15 +165,33 @@ function App() {
           <button>导出摘要</button>
         </div>
         <div className="record-list">
-          {project.records.map((record: string[], index: number) => (
-            <article key={record.join("-")} className="record-card">
-              <div className="record-index">{String(index + 1).padStart(2, "0")}</div>
-              <div>
-                <h3>{record[0]}</h3>
-                <p>{record.slice(1).join(" · ")}</p>
-              </div>
-            </article>
-          ))}
+          {project.records.map((record: string[], index: number) => {
+            const aromas = record[3]?.split("、") || [];
+            return (
+              <article key={record.join("-")} className="record-card">
+                <div className="record-index">{String(index + 1).padStart(2, "0")}</div>
+                <div>
+                  <h3>{record[0]}</h3>
+                  <p>
+                    {record.slice(1, 3).join(" · ")}
+                    {aromas.length > 0 && (
+                      <span className="record-aromas">
+                        {aromas.map((a) => (
+                          <button
+                            key={a}
+                            className="record-aroma-link"
+                            onClick={() => handleAromaClick(a.trim())}
+                          >
+                            {a.trim()}
+                          </button>
+                        ))}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
     </main>

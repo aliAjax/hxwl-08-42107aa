@@ -24,7 +24,11 @@ function checkAnswer(userAnswer: string, correctAnswer: string): boolean {
   return false;
 }
 
-export default function BlindTastingCard() {
+interface BlindTastingCardProps {
+  onAromaClick?: (aroma: string) => void;
+}
+
+export default function BlindTastingCard({ onAromaClick }: BlindTastingCardProps) {
   const [currentCard, setCurrentCard] = useState<WineCard>(() => getRandomCard());
   const [status, setStatus] = useState<GameStatus>("playing");
   const [regionInput, setRegionInput] = useState("");
@@ -86,9 +90,14 @@ export default function BlindTastingCard() {
             <span className="sensory-label">香气</span>
             <div className="aroma-tags">
               {currentCard.aromas.map((aroma) => (
-                <span key={aroma} className="aroma-tag">
+                <button
+                  key={aroma}
+                  className="aroma-tag aroma-tag-clickable"
+                  onClick={() => onAromaClick?.(aroma)}
+                  title={`在词库中查看「${aroma}」`}
+                >
                   {aroma}
-                </span>
+                </button>
               ))}
             </div>
           </div>
