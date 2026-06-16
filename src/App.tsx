@@ -1,4 +1,5 @@
 import "./styles.css";
+import BlindTastingCard from "./components/BlindTastingCard";
 
 const project = {
   "id": "hxwl-08",
@@ -132,6 +133,8 @@ function App() {
           </div>
         </section>
       </section>
+
+      <BlindTastingCard />
 
       <section className="records panel">
         <div className="section-heading">
