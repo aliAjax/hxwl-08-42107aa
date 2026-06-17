@@ -3,6 +3,7 @@ import { WineRecord, WineRecordInput, seedRecords } from "./wineRecordTypes";
 const DB_NAME = "hxwl-08-wine-db";
 const DB_VERSION = 1;
 const STORE_NAME = "wineRecords";
+const SEEDED_FLAG_KEY = "hxwl-08-wine-db-seeded";
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -110,16 +111,38 @@ export async function deleteRecord(id: string): Promise<void> {
   });
 }
 
+let seedLock: Promise<WineRecord[]> | null = null;
+
 export async function seedDatabaseIfEmpty(): Promise<WineRecord[]> {
+  if (seedLock) {
+    return seedLock;
+  }
+
+  const hasSeeded = localStorage.getItem(SEEDED_FLAG_KEY) === "1";
   const existing = await getAllRecords();
-  if (existing.length > 0) {
+
+  if (hasSeeded) {
     return existing;
   }
 
-  const results: WineRecord[] = [];
-  for (const seed of seedRecords) {
-    const record = await addRecord(seed);
-    results.push(record);
+  if (existing.length > 0) {
+    localStorage.setItem(SEEDED_FLAG_KEY, "1");
+    return existing;
   }
-  return results;
+
+  seedLock = (async () => {
+    try {
+      const results: WineRecord[] = [];
+      for (const seed of seedRecords) {
+        const record = await addRecord(seed);
+        results.push(record);
+      }
+      localStorage.setItem(SEEDED_FLAG_KEY, "1");
+      return results;
+    } finally {
+      seedLock = null;
+    }
+  })();
+
+  return seedLock;
 }
