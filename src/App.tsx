@@ -9,6 +9,7 @@ import WineRecordForm from "./components/WineRecordForm";
 import RegionMapDashboard from "./components/RegionMapDashboard";
 import RegionDetailView from "./components/RegionDetailView";
 import ExamPanel from "./components/ExamPanel";
+import AdaptiveDashboard from "./components/AdaptiveDashboard";
 import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
@@ -42,8 +43,13 @@ function MetricCard({ label, value, index }: { label: string; value: string; ind
 function App() {
   const [selectedAroma, setSelectedAroma] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "warn" | "info" } | null>(null);
+  const [dashboardRefreshSignal, setDashboardRefreshSignal] = useState(0);
   const lexiconRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const triggerDashboardRefresh = useCallback(() => {
+    setDashboardRefreshSignal((s) => s + 1);
+  }, []);
 
   const { records, loading, error, addRecord, updateRecord, deleteRecord } = useWineRecords();
 
@@ -232,6 +238,12 @@ function App() {
       <BlindQuiz onAromaClick={handleAromaClick} />
 
       <ExamPanel records={records} onAromaClick={handleAromaClick} />
+
+      <AdaptiveDashboard
+        records={records}
+        onAromaClick={handleAromaClick}
+        onRefreshSignal={dashboardRefreshSignal}
+      />
 
       {selectedRegionKey ? (
         <RegionDetailView

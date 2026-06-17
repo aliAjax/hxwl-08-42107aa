@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { WineRecord } from "../data/wineRecordTypes";
+import {
+  saveQuizSession,
+  QuizSession,
+  QuizAttemptDetail,
+  MistakeType,
+} from "../data/adaptiveReview";
 
 type ExamPhase = "setup" | "quiz" | "result";
 
@@ -78,6 +84,8 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
   const [timeUp, setTimeUp] = useState(false);
   const [results, setResults] = useState<QuestionResult[]>([]);
   const [confirmingQuit, setConfirmingQuit] = useState(false);
+  const [questionStartTimes, setQuestionStartTimes] = useState<number[]>([]);
+  const [questionEndTimes, setQuestionEndTimes] = useState<number[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const availableCount = records.length;
@@ -125,6 +133,7 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
     (finalElapsed: number) => {
       if (timerRef.current) clearInterval(timerRef.current);
       setElapsed(finalElapsed);
+      const endTime = Date.now();
 
       const computed: QuestionResult[] = questions.map((question) => {
         const regionCorrect = checkAnswer(
@@ -143,11 +152,62 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
         };
       });
 
+      const finalEndTimes = [...questionEndTimes];
+      const finalStartTimes = [...questionStartTimes];
+      if (finalEndTimes[currentIndex] === 0) {
+        finalEndTimes[currentIndex] = endTime;
+      }
+
+      const attempts: QuizAttemptDetail[] = computed.map((result, i) => {
+        const qStart = finalStartTimes[i] || startTime || endTime;
+        const qEnd = finalEndTimes[i] || endTime;
+        const timeSpent = Math.max(1000, qEnd - qStart);
+        const userRegion = result.question.answer.region.trim();
+        const userGrape = result.question.answer.grape.trim();
+        let mistakeType: MistakeType = "none";
+        if (!result.regionCorrect && !result.grapeCorrect) mistakeType = "both";
+        else if (!result.regionCorrect) mistakeType = "region";
+        else if (!result.grapeCorrect) mistakeType = "grape";
+
+        return {
+          questionId: result.question.record.id,
+          source: "wineRecord",
+          regionCorrect: result.regionCorrect,
+          grapeCorrect: result.grapeCorrect,
+          userRegionAnswer: userRegion,
+          userGrapeAnswer: userGrape,
+          correctRegion: result.question.record.region,
+          correctGrape: result.question.record.grape,
+          timeSpentMs: timeSpent,
+          mistakeType,
+          confusedWithRegion:
+            mistakeType !== "none" && userRegion
+              ? userRegion
+              : undefined,
+          confusedWithGrape:
+            mistakeType !== "none" && userGrape
+              ? userGrape
+              : undefined,
+        };
+      });
+
+      const correctCount = computed.filter((r) => r.fullyCorrect).length;
+      const session: QuizSession = {
+        id: `exam-${Date.now().toString(36)}`,
+        sessionName: examName.trim() || "未命名测验",
+        startTime: startTime || endTime,
+        endTime,
+        totalDurationMs: finalElapsed,
+        attempts,
+        overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
+      };
+      saveQuizSession(session);
+
       setResults(computed);
       setPhase("result");
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [questions]
+    [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName]
   );
 
   const startQuiz = useCallback(() => {
@@ -166,11 +226,21 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
       }))
     );
     setCurrentIndex(0);
-    setStartTime(Date.now());
+    const now = Date.now();
+    setStartTime(now);
     setElapsed(0);
     setTimeUp(false);
     setResults([]);
     setConfirmingQuit(false);
+    setQuestionStartTimes(picked.map(() => 0));
+    setQuestionEndTimes(picked.map(() => 0));
+    setTimeout(() => {
+      setQuestionStartTimes((prev) => {
+        const next = [...prev];
+        next[0] = Date.now();
+        return next;
+      });
+    }, 0);
     setPhase("quiz");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [records, selectedRecordIds, examName, effectiveCount]);
@@ -194,10 +264,25 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
     (index: number) => {
       setConfirmingQuit(false);
       if (index < 0 || index >= questions.length) return;
+      const now = Date.now();
+      setQuestionEndTimes((prev) => {
+        const next = [...prev];
+        if (next[currentIndex] === 0) {
+          next[currentIndex] = now;
+        }
+        return next;
+      });
+      setQuestionStartTimes((prev) => {
+        const next = [...prev];
+        if (next[index] === 0) {
+          next[index] = now;
+        }
+        return next;
+      });
       setCurrentIndex(index);
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [questions.length]
+    [questions.length, currentIndex]
   );
 
   const finishQuiz = useCallback(() => {
