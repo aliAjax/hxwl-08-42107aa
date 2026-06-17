@@ -1,5 +1,5 @@
 import { QuizSession, getAllSessions, ConfusionPair, QuizAttemptDetail, computeConfusionPairs } from "./adaptiveReview";
-import { WineCard, wineCards } from "./wineData";
+import { wineCards } from "./wineData";
 import { WineRecord } from "./wineRecordTypes";
 import {
   putBlindTastingRecords,
@@ -29,23 +29,30 @@ const WINE_NAME_MAP = new Map<string, { name: string; aromas: string[] }>();
 function initWineNameMap() {
   if (WINE_NAME_MAP.size > 0) return;
   for (const card of wineCards) {
-    WINE_NAME_MAP.set(card.id, { name: card.wineName, aromas: card.aromas || [] });
+    WINE_NAME_MAP.set(card.id, { name: card.region, aromas: card.aromas || [] });
   }
 }
 
-function getWineInfo(wineId: string): { name: string; aromas: string[] } {
+function getWineInfo(wineId: string, records: WineRecord[] = []): { name: string; aromas: string[] } {
   initWineNameMap();
+  const record = records.find((r) => r.id === wineId);
+  if (record) {
+    return { name: record.name || record.region, aromas: record.aromas || [] };
+  }
   return WINE_NAME_MAP.get(wineId) || { name: wineId, aromas: [] };
 }
 
-export async function syncQuizSessionToProfile(session: QuizSession): Promise<void> {
+export async function syncQuizSessionToProfile(
+  session: QuizSession,
+  records: WineRecord[] = []
+): Promise<void> {
   try {
     const quizResult = quizSessionToQuizResult(session);
     await putQuizResults([quizResult]);
 
     const blindRecords: BlindTastingRecord[] = [];
     for (const attempt of session.attempts) {
-      const wineInfo = getWineInfo(attempt.questionId);
+      const wineInfo = getWineInfo(attempt.questionId, records);
       const record = quizAttemptToBlindTastingRecord(
         attempt,
         session.id,

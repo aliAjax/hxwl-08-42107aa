@@ -69,9 +69,10 @@ function formatDuration(ms: number): string {
 interface ExamPanelProps {
   records: WineRecord[];
   onAromaClick?: (aroma: string) => void;
+  onProfileSynced?: () => void;
 }
 
-export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
+export default function ExamPanel({ records, onAromaClick, onProfileSynced }: ExamPanelProps) {
   const [phase, setPhase] = useState<ExamPhase>("setup");
   const [examName, setExamName] = useState("");
   const [questionCount, setQuestionCount] = useState(5);
@@ -132,7 +133,7 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
   }, [phase, startTime, timeLimit]);
 
   const finishQuizInternal = useCallback(
-    (finalElapsed: number) => {
+    async (finalElapsed: number) => {
       if (timerRef.current) clearInterval(timerRef.current);
       setElapsed(finalElapsed);
       const endTime = Date.now();
@@ -204,13 +205,14 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
         overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
       };
       saveQuizSession(session);
-      syncQuizSessionToProfile(session);
+      await syncQuizSessionToProfile(session, records);
+      onProfileSynced?.();
 
       setResults(computed);
       setPhase("result");
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName]
+    [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName, records, onProfileSynced]
   );
 
   const startQuiz = useCallback(() => {

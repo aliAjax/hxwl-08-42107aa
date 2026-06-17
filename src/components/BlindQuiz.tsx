@@ -74,9 +74,10 @@ function getPool(scope: RegionScopeOption): WineCard[] {
 interface BlindQuizProps {
   onAromaClick?: (aroma: string) => void;
   records: WineRecord[];
+  onProfileSynced?: () => void;
 }
 
-export default function BlindQuiz({ onAromaClick, records }: BlindQuizProps) {
+export default function BlindQuiz({ onAromaClick, records, onProfileSynced }: BlindQuizProps) {
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [scopeValue, setScopeValue] = useState("all");
   const [desiredCount, setDesiredCount] = useState(5);
@@ -181,7 +182,7 @@ export default function BlindQuiz({ onAromaClick, records }: BlindQuizProps) {
     [questions.length, currentIndex]
   );
 
-  const finishQuiz = useCallback(() => {
+  const finishQuiz = useCallback(async () => {
     if (timerRef.current) clearInterval(timerRef.current);
     const endTime = Date.now();
     if (startTime !== null) {
@@ -254,12 +255,13 @@ export default function BlindQuiz({ onAromaClick, records }: BlindQuizProps) {
       overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
     };
     saveQuizSession(session);
-    syncQuizSessionToProfile(session);
+    await syncQuizSessionToProfile(session, records);
+    onProfileSynced?.();
 
     setResults(computed);
     setPhase("result");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [questions, startTime, questionEndTimes, questionStartTimes, currentIndex, selectedScope]);
+  }, [questions, startTime, questionEndTimes, questionStartTimes, currentIndex, selectedScope, records, onProfileSynced]);
 
   const restart = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

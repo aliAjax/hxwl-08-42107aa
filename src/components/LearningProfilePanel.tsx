@@ -20,6 +20,7 @@ import { WineRecord } from "../data/wineRecordTypes";
 
 interface LearningProfilePanelProps {
   records?: WineRecord[];
+  refreshSignal?: number;
 }
 
 interface ProfileStats {
@@ -46,7 +47,7 @@ function formatTimeRelative(ts: number): string {
   return `${days}天前`;
 }
 
-export default function LearningProfilePanel({ records = [] }: LearningProfilePanelProps) {
+export default function LearningProfilePanel({ records = [], refreshSignal = 0 }: LearningProfilePanelProps) {
   const [stats, setStats] = useState<ProfileStats>({
     blindCount: 0,
     quizCount: 0,
@@ -99,7 +100,7 @@ export default function LearningProfilePanel({ records = [] }: LearningProfilePa
   useEffect(() => {
     refreshData();
     setIsMigrated(hasMigratedProfile());
-  }, [refreshData]);
+  }, [refreshData, refreshSignal]);
 
   useEffect(() => {
     const shouldAutoMigrate = !hasMigratedProfile() && stats.totalRecords === 0;

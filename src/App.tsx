@@ -45,11 +45,16 @@ function App() {
   const [selectedAroma, setSelectedAroma] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: "warn" | "info" } | null>(null);
   const [dashboardRefreshSignal, setDashboardRefreshSignal] = useState(0);
+  const [profileRefreshSignal, setProfileRefreshSignal] = useState(0);
   const lexiconRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const triggerDashboardRefresh = useCallback(() => {
     setDashboardRefreshSignal((s) => s + 1);
+  }, []);
+
+  const triggerProfileRefresh = useCallback(() => {
+    setProfileRefreshSignal((s) => s + 1);
   }, []);
 
   const { records, loading, error, addRecord, updateRecord, deleteRecord } = useWineRecords();
@@ -236,9 +241,17 @@ function App() {
 
       <BlindTastingCard onAromaClick={handleAromaClick} />
 
-      <BlindQuiz onAromaClick={handleAromaClick} records={records} />
+      <BlindQuiz
+        onAromaClick={handleAromaClick}
+        records={records}
+        onProfileSynced={triggerProfileRefresh}
+      />
 
-      <ExamPanel records={records} onAromaClick={handleAromaClick} />
+      <ExamPanel
+        records={records}
+        onAromaClick={handleAromaClick}
+        onProfileSynced={triggerProfileRefresh}
+      />
 
       <AdaptiveDashboard
         records={records}
@@ -348,7 +361,7 @@ function App() {
 
       <WineComparison onAromaClick={handleAromaClick} />
 
-      <LearningProfilePanel records={records} />
+      <LearningProfilePanel records={records} refreshSignal={profileRefreshSignal} />
 
       {formState.open && (
         <WineRecordForm
