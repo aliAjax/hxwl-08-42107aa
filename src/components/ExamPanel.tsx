@@ -8,6 +8,7 @@ import {
   weightedSampleRecords,
 } from "../data/adaptiveReview";
 import { syncQuizSessionToProfile } from "../data/learningProfileSync";
+import { checkRegionAnswer, checkGrapeAnswer, MatchResult } from "../data/answerChecker";
 
 type ExamPhase = "setup" | "quiz" | "result";
 
@@ -35,19 +36,8 @@ interface QuestionResult {
   regionCorrect: boolean;
   grapeCorrect: boolean;
   fullyCorrect: boolean;
-}
-
-function normalizeText(text: string): string {
-  return text.trim().toLowerCase().replace(/\s+/g, "");
-}
-
-function checkAnswer(userAnswer: string, correctAnswer: string): boolean {
-  const user = normalizeText(userAnswer);
-  const correct = normalizeText(correctAnswer);
-  if (!user) return false;
-  if (user === correct) return true;
-  if (correct.includes(user) || user.includes(correct)) return true;
-  return false;
+  regionMatch: MatchResult;
+  grapeMatch: MatchResult;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -165,19 +155,21 @@ export default function ExamPanel({
       const endTime = Date.now();
 
       const computed: QuestionResult[] = questions.map((question) => {
-        const regionCorrect = checkAnswer(
+        const regionMatch = checkRegionAnswer(
           question.answer.region,
           question.record.region
         );
-        const grapeCorrect = checkAnswer(
+        const grapeMatch = checkGrapeAnswer(
           question.answer.grape,
           question.record.grape
         );
         return {
           question,
-          regionCorrect,
-          grapeCorrect,
-          fullyCorrect: regionCorrect && grapeCorrect,
+          regionCorrect: regionMatch.correct,
+          grapeCorrect: grapeMatch.correct,
+          fullyCorrect: regionMatch.correct && grapeMatch.correct,
+          regionMatch,
+          grapeMatch,
         };
       });
 
@@ -948,7 +940,7 @@ interface ReviewItemProps {
 }
 
 function ReviewItem({ result, index, onAromaClick }: ReviewItemProps) {
-  const { question, regionCorrect, grapeCorrect, fullyCorrect } = result;
+  const { question, regionCorrect, grapeCorrect, fullyCorrect, regionMatch, grapeMatch } = result;
   const { record, answer } = question;
   const sensoryLine = [
     record.color,
@@ -1035,7 +1027,7 @@ function ReviewItem({ result, index, onAromaClick }: ReviewItemProps) {
           >
             {answer.region.trim() || "（未作答）"}
           </span>
-          <span className="quiz-compare-correct">正确：{record.region}</span>
+          <span className="quiz-compare-correct">{regionMatch.sourceLabel}</span>
         </div>
         <div className="quiz-compare-row">
           <span className="quiz-compare-label">你的品种</span>
@@ -1046,7 +1038,7 @@ function ReviewItem({ result, index, onAromaClick }: ReviewItemProps) {
           >
             {answer.grape.trim() || "（未作答）"}
           </span>
-          <span className="quiz-compare-correct">正确：{record.grape}</span>
+          <span className="quiz-compare-correct">{grapeMatch.sourceLabel}</span>
         </div>
       </div>
 
