@@ -1781,6 +1781,341 @@ input {
   font-weight: 600;
 }
 
+.wine-record-form {
+  width: min(720px, 100%);
+  max-height: 90vh;
+}
+
+.form-section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 20px;
+}
+
+.form-section-title {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 700;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.wine-record-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: #172033;
+  font: inherit;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.wine-record-form textarea {
+  width: 100%;
+  min-height: 84px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #172033;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.wine-record-form input:focus,
+.wine-record-form select:focus,
+.wine-record-form textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.aroma-selector {
+  display: grid;
+  gap: 16px;
+}
+
+.aroma-category-group {
+  display: grid;
+  gap: 10px;
+}
+
+.aroma-category-title {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+  margin: 0;
+}
+
+.aroma-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aroma-select-tag {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: #526070;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: auto;
+}
+
+.aroma-select-tag:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.aroma-select-tag.selected {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.form-btn {
+  min-height: 42px;
+  padding: 0 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.form-btn.submit-btn {
+  min-width: 120px;
+}
+
+.form-btn.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: #ffffff;
+  border-color: var(--border);
+  color: #526070;
+}
+
+.cancel-btn:hover {
+  border-color: #94a3b8;
+  color: #374151;
+}
+
+.record-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.record-action-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: #526070;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.record-action-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.record-action-btn.delete-btn:hover {
+  border-color: #e11d48;
+  color: #e11d48;
+  background: color-mix(in srgb, #e11d48 5%, #ffffff);
+}
+
+.records .section-heading button {
+  min-height: 38px;
+}
+
+.records-loading,
+.records-error {
+  text-align: center;
+  padding: 40px 20px;
+  color: #64748b;
+}
+
+.records-error {
+  color: #e11d48;
+}
+
+.record-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.record-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.record-card-menu {
+  flex-shrink: 0;
+}
+
+.menu-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.15s;
+}
+
+.menu-btn:hover {
+  background: #f1f5f9;
+  color: #526070;
+  border-color: var(--border);
+}
+
+.record-card-dropdown {
+  position: relative;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  min-width: 120px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 13px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #374151;
+  transition: background 0.15s;
+}
+
+.dropdown-item:hover {
+  background: #f1f5f9;
+}
+
+.dropdown-item.delete-item {
+  color: #e11d48;
+}
+
+.dropdown-item.delete-item:hover {
+  background: color-mix(in srgb, #e11d48 8%, #ffffff);
+}
+
+.confirm-delete-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: grid;
+  place-items: center;
+  z-index: 200;
+  padding: 24px;
+}
+
+.confirm-delete-dialog {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  width: min(400px, 100%);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.25);
+}
+
+.confirm-delete-dialog h3 {
+  font-size: 18px;
+  margin: 0 0 8px;
+  color: #172033;
+}
+
+.confirm-delete-dialog p {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.confirm-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.confirm-delete-actions button {
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.confirm-delete-btn {
+  background: #e11d48;
+  color: #ffffff;
+  border-color: #e11d48;
+}
+
+.records-count {
+  font-size: 13px;
+  color: #64748b;
+  align-self: center;
+  margin-left: 12px;
+}
+
 @media (max-width: 860px) {
   .clues-grid {
     grid-template-columns: 1fr;
@@ -1864,5 +2199,17 @@ input {
 
   .quiz-compare-correct {
     justify-self: start;
+  }
+
+  .wine-record-form {
+    max-height: 85vh;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .form-btn {
+    width: 100%;
   }
 }
