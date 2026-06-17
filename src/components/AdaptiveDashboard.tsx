@@ -7,6 +7,11 @@ import {
   WeightFactor,
   ConfusionPair,
   clearAllHistory,
+  generateTodayReviewPlan,
+  GenerationScope,
+  scopeLabels,
+  scopeHints,
+  GenerationResult,
 } from "../data/adaptiveReview";
 import { syncConfusionPairsToProfile } from "../data/learningProfileSync";
 
@@ -14,6 +19,7 @@ interface AdaptiveDashboardProps {
   records: WineRecord[];
   onAromaClick?: (aroma: string) => void;
   onRefreshSignal?: number;
+  onReviewPlanGenerated?: () => void;
 }
 
 type SortKey = "weight" | "attempts" | "accuracy" | "recent";
@@ -59,12 +65,19 @@ export default function AdaptiveDashboard({
   records,
   onAromaClick,
   onRefreshSignal,
+  onReviewPlanGenerated,
 }: AdaptiveDashboardProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("weight");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [confirmReset, setConfirmReset] = useState(false);
   const [rebuildTrigger, setRebuildTrigger] = useState(0);
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [selectedScopes, setSelectedScopes] = useState<GenerationScope[]>(["highPriority"]);
+  const [taskCount, setTaskCount] = useState(5);
+  const [includeStages, setIncludeStages] = useState<("today" | "three-days" | "one-week")[]>(["today"]);
+  const [lastGenResult, setLastGenResult] = useState<GenerationResult | null>(null);
+  const [toast, setToast] = useState<{ msg: string; tone: "ok" | "info" } | null>(null);
 
   const dashboard: AdaptiveDashboardData = useMemo(() => {
     return buildAdaptiveDashboard(records);
@@ -131,6 +144,47 @@ export default function AdaptiveDashboard({
     setConfirmReset(false);
   }, []);
 
+  const showToastMsg = useCallback((msg: string, tone: "ok" | "info" = "ok") => {
+    setToast({ msg, tone });
+    setTimeout(() => setToast(null), 2800);
+  }, []);
+
+  const toggleScope = useCallback((scope: GenerationScope) => {
+    setSelectedScopes((prev) => {
+      if (prev.includes(scope)) {
+        const next = prev.filter((s) => s !== scope);
+        return next.length > 0 ? next : prev;
+      }
+      return [...prev, scope];
+    });
+  }, []);
+
+  const toggleStage = useCallback(
+    (stage: "today" | "three-days" | "one-week") => {
+      setIncludeStages((prev) => {
+        if (prev.includes(stage)) {
+          const next = prev.filter((s) => s !== stage);
+          return next.length > 0 ? next : prev;
+        }
+        return [...prev, stage];
+      });
+    },
+    []
+  );
+
+  const handleGeneratePlan = useCallback(() => {
+    const result = generateTodayReviewPlan(records, {
+      scopes: selectedScopes,
+      count: taskCount,
+      includeStages,
+    });
+    setLastGenResult(result);
+    setShowGenerateDialog(false);
+    onReviewPlanGenerated?.();
+    const scopeSummary = selectedScopes.map((s) => scopeLabels[s]).join("+");
+    showToastMsg(`已生成 ${result.tasks.length} 条复习任务（${scopeSummary}，前${taskCount}个）`, "ok");
+  }, [records, selectedScopes, taskCount, includeStages, onReviewPlanGenerated, showToastMsg]);
+
   const { overallStats } = dashboard;
 
   return (
@@ -148,10 +202,17 @@ export default function AdaptiveDashboard({
             重置练习历史
           </button>
           <button
-            className="primary-action"
+            className="secondary-action"
             onClick={() => setRebuildTrigger((t) => t + 1)}
           >
             刷新数据
+          </button>
+          <button
+            className="primary-action"
+            onClick={() => setShowGenerateDialog(true)}
+            style={{ background: "linear-gradient(135deg, var(--accent), #7c5cff)" }}
+          >
+            🎯 生成今日复习计划
           </button>
         </div>
       </div>
@@ -343,6 +404,227 @@ export default function AdaptiveDashboard({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showGenerateDialog && (
+        <div
+          className="confirm-delete-overlay"
+          onClick={() => setShowGenerateDialog(false)}
+        >
+          <div
+            className="confirm-delete-dialog"
+            style={{ maxWidth: "560px", width: "92%" }}
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              🎯 生成今日复习计划
+            </h3>
+            <p style={{ marginBottom: "20px", color: "var(--text-muted)" }}>
+              智能选择需要重点复习的酒款，生成间隔复习任务并同步到学习档案。
+            </p>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ fontWeight: 600, marginBottom: "10px", display: "block" }}>
+                生成范围（可多选）
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {(["highPriority", "unpracticed", "weakRegions"] as GenerationScope[]).map(
+                  (scope) => (
+                    <label
+                      key={scope}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "10px",
+                        padding: "12px 14px",
+                        border: "1px solid",
+                        borderColor: selectedScopes.includes(scope)
+                          ? "var(--accent)"
+                          : "var(--border)",
+                        borderRadius: "10px",
+                        background: selectedScopes.includes(scope)
+                          ? "rgba(99, 102, 241, 0.08)"
+                          : "transparent",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedScopes.includes(scope)}
+                        onChange={() => toggleScope(scope)}
+                        style={{ marginTop: "3px" }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600 }}>{scopeLabels[scope]}</div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--text-muted)",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {scopeHints[scope]}
+                        </div>
+                      </div>
+                    </label>
+                  )
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ fontWeight: 600, marginBottom: "10px", display: "block" }}>
+                复习阶段（可多选）
+              </label>
+              <div style={{ display: "flex", gap: "10px" }}>
+                {(
+                  [
+                    { k: "today", label: "今天", hint: "立即复习" },
+                    { k: "three-days", label: "3天后", hint: "短期巩固" },
+                    { k: "one-week", label: "1周后", hint: "长期记忆" },
+                  ] as {
+                    k: "today" | "three-days" | "one-week";
+                    label: string;
+                    hint: string;
+                  }[]
+                ).map((stg) => (
+                  <label
+                    key={stg.k}
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "12px 8px",
+                      border: "1px solid",
+                      borderColor: includeStages.includes(stg.k)
+                        ? "var(--accent)"
+                        : "var(--border)",
+                      borderRadius: "10px",
+                      background: includeStages.includes(stg.k)
+                        ? "rgba(99, 102, 241, 0.08)"
+                        : "transparent",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeStages.includes(stg.k)}
+                      onChange={() => toggleStage(stg.k)}
+                    />
+                    <strong>{stg.label}</strong>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {stg.hint}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+              <label
+                style={{
+                  fontWeight: 600,
+                  marginBottom: "10px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>每个阶段酒款数量</span>
+                <strong style={{ color: "var(--accent)" }}>{taskCount} 个</strong>
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={15}
+                value={taskCount}
+                onChange={(e) => setTaskCount(Number(e.target.value))}
+                style={{ width: "100%" }}
+              />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "11px",
+                  color: "var(--text-muted)",
+                  marginTop: "4px",
+                }}
+              >
+                <span>1</span>
+                <span>5</span>
+                <span>10</span>
+                <span>15</span>
+              </div>
+            </div>
+
+            {lastGenResult && (
+              <div
+                style={{
+                  padding: "12px",
+                  background: "var(--bg-secondary)",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                  fontSize: "13px",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "6px" }}>上次生成结果：</div>
+                <div style={{ color: "var(--text-muted)" }}>
+                  共 {lastGenResult.tasks.length} 条任务
+                  {lastGenResult.counts.highPriority > 0 &&
+                    ` · 高优${lastGenResult.counts.highPriority}`}
+                  {lastGenResult.counts.unpracticed > 0 &&
+                    ` · 未练${lastGenResult.counts.unpracticed}`}
+                  {lastGenResult.counts.weakRegions > 0 &&
+                    ` · 薄产${lastGenResult.counts.weakRegions}`}
+                </div>
+              </div>
+            )}
+
+            <div className="confirm-delete-actions">
+              <button onClick={() => setShowGenerateDialog(false)}>取消</button>
+              <button
+                className="confirm-delete-btn"
+                style={{
+                  background: "linear-gradient(135deg, var(--accent), #7c5cff)",
+                }}
+                onClick={handleGeneratePlan}
+                disabled={selectedScopes.length === 0}
+              >
+                生成复习计划
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "32px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "12px 20px",
+            background: toast.tone === "ok" ? "var(--accent)" : "var(--warn)",
+            color: "white",
+            borderRadius: "10px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+            zIndex: 9999,
+            fontWeight: 500,
+            animation: "fadeInUp 0.3s ease",
+          }}
+        >
+          {toast.tone === "ok" ? "✅ " : "ℹ️ "}
+          {toast.msg}
         </div>
       )}
     </section>

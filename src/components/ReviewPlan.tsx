@@ -1,5 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { syncReviewTasksToProfile } from "../data/learningProfileSync";
+import {
+  getAdaptiveReviewTasks,
+  toggleAdaptiveTaskCompleted,
+  AdaptiveReviewTask,
+  scopeLabels,
+  GenerationScope,
+} from "../data/adaptiveReview";
 
 export interface ReviewRecord {
   name: string;
@@ -19,17 +26,23 @@ interface ReviewTask {
   stage: ReviewStage;
   scheduledDate: Date;
   completed: boolean;
+  isAdaptive?: boolean;
+  adaptiveScope?: GenerationScope;
+  adaptiveRank?: number;
+  adaptiveWeight?: number;
 }
 
 interface ReviewGroup {
   stage: ReviewStage;
   scheduledDate: Date;
   tasks: ReviewTask[];
+  adaptiveTasks: ReviewTask[];
 }
 
 interface ReviewPlanProps {
   records: ReviewRecord[];
   onAromaClick?: (aroma: string) => void;
+  refreshSignal?: number;
 }
 
 const STORAGE_KEY = "hxwl-08-review-status";
@@ -79,11 +92,26 @@ function loadCompleted(): Record<string, boolean> {
   }
 }
 
-export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
+export default function ReviewPlan({
+  records,
+  onAromaClick,
+  refreshSignal,
+}: ReviewPlanProps) {
   const [today] = useState(() => startOfDay(new Date()));
   const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>(
     loadCompleted
   );
+  const [adaptiveTasks, setAdaptiveTasks] = useState<AdaptiveReviewTask[]>([]);
+  const [adaptiveVersion, setAdaptiveVersion] = useState(0);
+
+  const loadAdaptive = useCallback(() => {
+    setAdaptiveTasks(getAdaptiveReviewTasks());
+    setAdaptiveVersion((v) => v + 1);
+  }, []);
+
+  useEffect(() => {
+    loadAdaptive();
+  }, [refreshSignal, loadAdaptive]);
 
   useEffect(() => {
     try {
@@ -113,17 +141,57 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
     syncReviewTasksToProfile(allTasks);
   }, [records, today, completedTasks]);
 
-  const toggleTask = useCallback((taskId: string) => {
-    setCompletedTasks((prev) => {
-      const next = { ...prev };
-      if (next[taskId]) {
-        delete next[taskId];
+  const toggleTask = useCallback(
+    (taskId: string, isAdaptive: boolean = false) => {
+      if (isAdaptive) {
+        toggleAdaptiveTaskCompleted(taskId);
+        loadAdaptive();
       } else {
-        next[taskId] = true;
+        setCompletedTasks((prev) => {
+          const next = { ...prev };
+          if (next[taskId]) {
+            delete next[taskId];
+          } else {
+            next[taskId] = true;
+          }
+          return next;
+        });
       }
-      return next;
-    });
-  }, []);
+    },
+    [loadAdaptive]
+  );
+
+  const adaptiveTasksByStage = useMemo(() => {
+    const map: Record<ReviewStage, ReviewTask[]> = {
+      today: [],
+      "three-days": [],
+      "one-week": [],
+    };
+    for (const at of adaptiveTasks) {
+      const [y, m, d] = at.scheduledDate.split("-").map(Number);
+      const task: ReviewTask = {
+        id: at.id,
+        wineName: at.wineName,
+        grape: at.grape,
+        characteristic: at.characteristic,
+        aromas: at.aromas,
+        stage: at.stage,
+        scheduledDate: new Date(y, m - 1, d),
+        completed: at.completed,
+        isAdaptive: true,
+        adaptiveScope: at.generationScope,
+        adaptiveRank: at.rank,
+        adaptiveWeight: at.weight,
+      };
+      if (map[at.stage]) {
+        map[at.stage].push(task);
+      }
+    }
+    for (const stage of stageOrder) {
+      map[stage].sort((a, b) => (a.adaptiveRank ?? 0) - (b.adaptiveRank ?? 0));
+    }
+    return map;
+  }, [adaptiveTasks, adaptiveVersion]);
 
   const groups: ReviewGroup[] = stageOrder.map((stage) => {
     const scheduledDate = addDays(today, stageConfig[stage].offset);
@@ -141,14 +209,21 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
         completed: Boolean(completedTasks[id]),
       };
     });
-    return { stage, scheduledDate, tasks };
+    return {
+      stage,
+      scheduledDate,
+      tasks,
+      adaptiveTasks: adaptiveTasksByStage[stage],
+    };
   });
 
-  const todayTasks = groups[0].tasks;
+  const todayTasks = [...groups[0].tasks, ...groups[0].adaptiveTasks];
   const todayTotal = todayTasks.length;
   const todayDone = todayTasks.filter((t) => t.completed).length;
   const progress =
     todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : 0;
+
+  const hasAdaptiveToday = groups[0].adaptiveTasks.length > 0;
 
   return (
     <section className="review-plan panel">
@@ -156,6 +231,24 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
         <div>
           <p>间隔复习</p>
           <h2>近期复习计划</h2>
+          {hasAdaptiveToday && (
+            <div
+              style={{
+                marginTop: "6px",
+                fontSize: "12px",
+                color: "var(--accent)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 10px",
+                background: "rgba(124, 92, 255, 0.1)",
+                borderRadius: "20px",
+                fontWeight: 500,
+              }}
+            >
+              🎯 今日含 {groups[0].adaptiveTasks.length} 条自适应任务
+            </div>
+          )}
         </div>
         <div className="review-progress">
           <span>今日进度</span>
@@ -175,7 +268,9 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
       <div className="review-groups">
         {groups.map((group) => {
           const cfg = stageConfig[group.stage];
-          const done = group.tasks.filter((t) => t.completed).length;
+          const done =
+            group.tasks.filter((t) => t.completed).length +
+            group.adaptiveTasks.filter((t) => t.completed).length;
           const isActive = group.stage === "today";
           return (
             <div
@@ -193,11 +288,148 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
                   </span>
                 </div>
                 <span className="review-group-hint">
-                  {done}/{group.tasks.length} · {cfg.hint}
+                  {done}/{group.tasks.length + group.adaptiveTasks.length}
+                  {group.adaptiveTasks.length > 0 &&
+                    ` (含${group.adaptiveTasks.length}自适应)`}
+                  {" · "}{cfg.hint}
                 </span>
               </div>
 
               <div className="review-task-list">
+                {group.adaptiveTasks.length > 0 && (
+                  <div
+                    style={{
+                      margin: "8px 0 4px",
+                      padding: "6px 12px",
+                      background:
+                        "linear-gradient(90deg, rgba(124, 92, 255, 0.12), transparent)",
+                      borderRadius: "6px",
+                      borderLeft: "3px solid var(--accent)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "var(--accent)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    🎯 自适应生成任务 · {group.adaptiveTasks.length} 条
+                  </div>
+                )}
+                {group.adaptiveTasks.map((task) => (
+                  <article
+                    key={task.id}
+                    className={`review-task ${
+                      task.completed ? "review-task-done" : ""
+                    }`}
+                    style={{
+                      border: "1px solid rgba(124, 92, 255, 0.25)",
+                      background: task.completed
+                        ? "linear-gradient(135deg, rgba(99,102,241,0.04), rgba(124,92,255,0.02))"
+                        : "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(124,92,255,0.04))",
+                    }}
+                  >
+                    <button
+                      className="review-check"
+                      onClick={() => toggleTask(task.id, true)}
+                      aria-pressed={task.completed}
+                      title={task.completed ? "标记为未完成" : "标记为已完成"}
+                      style={{
+                        borderColor: task.completed ? "var(--accent)" : undefined,
+                        background: task.completed ? "var(--accent)" : undefined,
+                      }}
+                    >
+                      {task.completed ? "✓" : ""}
+                    </button>
+
+                    <div className="review-task-body">
+                      <div className="review-task-head">
+                        <h4 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {task.wineName}
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              padding: "2px 8px",
+                              borderRadius: "10px",
+                              background:
+                                task.adaptiveScope === "highPriority"
+                                  ? "rgba(239, 68, 68, 0.12)"
+                                  : task.adaptiveScope === "unpracticed"
+                                  ? "rgba(59, 130, 246, 0.12)"
+                                  : "rgba(245, 158, 11, 0.12)",
+                              color:
+                                task.adaptiveScope === "highPriority"
+                                  ? "#ef4444"
+                                  : task.adaptiveScope === "unpracticed"
+                                  ? "#3b82f6"
+                                  : "#f59e0b",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {task.adaptiveScope ? scopeLabels[task.adaptiveScope] : ""}
+                          </span>
+                          {task.adaptiveRank !== undefined && (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                padding: "2px 6px",
+                                borderRadius: "8px",
+                                background: "var(--bg-secondary)",
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              #{task.adaptiveRank}
+                            </span>
+                          )}
+                        </h4>
+                        <span className="review-task-meta">
+                          {task.grape} · {task.characteristic}
+                        </span>
+                      </div>
+
+                      <div className="review-clues">
+                        <span className="review-clues-label">重点线索</span>
+                        <div className="review-clue-tags">
+                          {task.aromas.map((aroma) => (
+                            <button
+                              key={aroma}
+                              className="review-clue-tag"
+                              onClick={() => onAromaClick?.(aroma)}
+                              title={`在词库中查看「${aroma}」`}
+                            >
+                              {aroma}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`review-status ${
+                        task.completed
+                          ? "review-status-done"
+                          : "review-status-pending"
+                      }`}
+                    >
+                      {task.completed ? "已完成" : "待复习"}
+                    </span>
+                  </article>
+                ))}
+                {group.adaptiveTasks.length > 0 && group.tasks.length > 0 && (
+                  <div
+                    style={{
+                      margin: "12px 0 4px",
+                      padding: "6px 12px",
+                      background: "var(--bg-secondary)",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    📋 常规复习计划
+                  </div>
+                )}
                 {group.tasks.map((task) => (
                   <article
                     key={task.id}
@@ -207,7 +439,7 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
                   >
                     <button
                       className="review-check"
-                      onClick={() => toggleTask(task.id)}
+                      onClick={() => toggleTask(task.id, false)}
                       aria-pressed={task.completed}
                       title={task.completed ? "标记为未完成" : "标记为已完成"}
                     >

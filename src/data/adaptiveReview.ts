@@ -1,9 +1,11 @@
 import { WineCard, wineCards, wineComparisons, WineComparison } from "./wineData";
 import { WineRecord } from "./wineRecordTypes";
 import { matchRegionKey, REGION_GROUPS } from "./regionStats";
+import { syncReviewTasksToProfile } from "./learningProfileSync";
 
 const HISTORY_STORAGE_KEY = "hxwl-08-quiz-history";
 const SEED_HISTORY_FLAG = "hxwl-08-history-seeded";
+const ADAPTIVE_REVIEW_TASKS_KEY = "hxwl-08-adaptive-review-tasks";
 
 export type QuizSource = "wineCard" | "wineRecord";
 export type MistakeType = "region" | "grape" | "both" | "none";
@@ -858,3 +860,264 @@ export function weightedSampleRecords(
 
   return result;
 }
+
+export type GenerationScope = "highPriority" | "unpracticed" | "weakRegions";
+
+export interface GenerationOptions {
+  scopes: GenerationScope[];
+  count: number;
+  includeStages?: ("today" | "three-days" | "one-week")[];
+}
+
+export interface AdaptiveReviewTask {
+  id: string;
+  wineId: string;
+  source: QuizSource;
+  wineName: string;
+  region: string;
+  grape: string;
+  aromas: string[];
+  characteristic: string;
+  stage: "today" | "three-days" | "one-week";
+  scheduledDate: string;
+  completed: boolean;
+  completedAt: number | null;
+  createdAt: number;
+  generationScope: GenerationScope;
+  weight: number;
+  rank: number;
+}
+
+export interface AdaptiveReviewTaskBundle {
+  generatedAt: number;
+  dateKey: string;
+  tasks: AdaptiveReviewTask[];
+}
+
+function getTodayKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function addDaysToKey(baseKey: string, days: number): string {
+  const [y, m, d] = baseKey.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function loadAdaptiveTasks(): AdaptiveReviewTaskBundle | null {
+  try {
+    const raw = localStorage.getItem(ADAPTIVE_REVIEW_TASKS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AdaptiveReviewTaskBundle;
+    if (parsed.dateKey !== getTodayKey()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveAdaptiveTasks(bundle: AdaptiveReviewTaskBundle): void {
+  try {
+    localStorage.setItem(ADAPTIVE_REVIEW_TASKS_KEY, JSON.stringify(bundle));
+  } catch {
+  }
+}
+
+export function getAdaptiveReviewTasks(): AdaptiveReviewTask[] {
+  const bundle = loadAdaptiveTasks();
+  return bundle ? bundle.tasks : [];
+}
+
+export function clearAdaptiveReviewTasks(): void {
+  localStorage.removeItem(ADAPTIVE_REVIEW_TASKS_KEY);
+}
+
+export function toggleAdaptiveTaskCompleted(taskId: string): boolean {
+  const bundle = loadAdaptiveTasks();
+  if (!bundle) return false;
+  const task = bundle.tasks.find((t) => t.id === taskId);
+  if (!task) return false;
+  task.completed = !task.completed;
+  task.completedAt = task.completed ? Date.now() : null;
+  saveAdaptiveTasks(bundle);
+  syncBundleToProfile(bundle);
+  return task.completed;
+}
+
+function syncBundleToProfile(bundle: AdaptiveReviewTaskBundle): void {
+  const tasksForSync = bundle.tasks.map((t) => {
+    const [y, m, d] = t.scheduledDate.split("-").map(Number);
+    return {
+      id: `adaptive_${t.id}`,
+      wineName: t.wineName,
+      grape: t.grape,
+      stage: t.stage,
+      scheduledDate: new Date(y, m - 1, d),
+      completed: t.completed,
+      completedAt: t.completedAt,
+      createdAt: t.createdAt,
+    };
+  });
+  syncReviewTasksToProfile(tasksForSync).catch(() => {});
+}
+
+export interface GenerationResult {
+  tasks: AdaptiveReviewTask[];
+  counts: Record<GenerationScope, number>;
+}
+
+export function generateTodayReviewPlan(
+  records: WineRecord[],
+  options: GenerationOptions
+): GenerationResult {
+  const dashboard = buildAdaptiveDashboard(records);
+  const { prioritizedWines, overallStats } = dashboard;
+  const maxWeight = prioritizedWines[0]?.finalWeight ?? 1;
+
+  const selectedMap = new Map<string, PrioritizedWine>();
+  const counts: Record<GenerationScope, number> = {
+    highPriority: 0,
+    unpracticed: 0,
+    weakRegions: 0,
+  };
+
+  const scopes = options.scopes.length > 0 ? options.scopes : ["highPriority"];
+  const stages = options.includeStages?.length > 0 ? options.includeStages : ["today"];
+
+  if (scopes.includes("highPriority")) {
+    const highPriorityWines = prioritizedWines.filter((w) => {
+      const level = getWeightLevel(w.finalWeight, maxWeight);
+      return level === "high";
+    });
+    for (const w of highPriorityWines) {
+      const key = `${w.stats.source}:${w.stats.id}`;
+      if (!selectedMap.has(key)) {
+        selectedMap.set(key, w);
+        counts.highPriority++;
+      }
+    }
+  }
+
+  if (scopes.includes("unpracticed")) {
+    const unpracticedWines = prioritizedWines.filter(
+      (w) => w.stats.totalAttempts === 0
+    );
+    for (const w of unpracticedWines) {
+      const key = `${w.stats.source}:${w.stats.id}`;
+      if (!selectedMap.has(key)) {
+        selectedMap.set(key, w);
+        counts.unpracticed++;
+      }
+    }
+  }
+
+  if (scopes.includes("weakRegions")) {
+    const weakRegionNames = new Set(overallStats.weakRegions.map((r) => r.region));
+    const weakRegionWines = prioritizedWines.filter((w) => {
+      const regionGroup = REGION_GROUPS.find((g) => g.key === matchRegionKey(w.stats.region));
+      const regionName = regionGroup?.name || w.stats.region;
+      return weakRegionNames.has(regionName);
+    });
+    for (const w of weakRegionWines) {
+      const key = `${w.stats.source}:${w.stats.id}`;
+      if (!selectedMap.has(key)) {
+        selectedMap.set(key, w);
+        counts.weakRegions++;
+      }
+    }
+  }
+
+  let candidates = Array.from(selectedMap.values());
+  candidates.sort((a, b) => b.finalWeight - a.finalWeight);
+
+  if (candidates.length > options.count) {
+    candidates = candidates.slice(0, options.count);
+  }
+
+  const todayKey = getTodayKey();
+  const stageOffsets: Record<string, number> = {
+    today: 0,
+    "three-days": 3,
+    "one-week": 7,
+  };
+
+  const tasks: AdaptiveReviewTask[] = [];
+  let globalRank = 1;
+
+  for (const stage of stages) {
+    const scheduledDate = addDaysToKey(todayKey, stageOffsets[stage]);
+    for (const wine of candidates) {
+      const task: AdaptiveReviewTask = {
+        id: `adp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}_${wine.stats.source}_${wine.stats.id}_${stage}`,
+        wineId: wine.stats.id,
+        source: wine.stats.source,
+        wineName: wine.stats.displayName,
+        region: wine.stats.region,
+        grape: wine.stats.grape,
+        aromas: wine.stats.aromas,
+        characteristic: buildCharacteristic(wine),
+        stage,
+        scheduledDate,
+        completed: false,
+        completedAt: null,
+        createdAt: Date.now(),
+        generationScope: determineScope(wine, scopes, maxWeight, overallStats),
+        weight: wine.finalWeight,
+        rank: globalRank++,
+      };
+      tasks.push(task);
+    }
+  }
+
+  const bundle: AdaptiveReviewTaskBundle = {
+    generatedAt: Date.now(),
+    dateKey: todayKey,
+    tasks,
+  };
+  saveAdaptiveTasks(bundle);
+  syncBundleToProfile(bundle);
+
+  return { tasks, counts };
+}
+
+function buildCharacteristic(wine: PrioritizedWine): string {
+  const parts: string[] = [];
+  if (wine.stats.region) parts.push(wine.stats.region);
+  if (wine.stats.country) parts.push(wine.stats.country);
+  if (wine.summaryReason) parts.push(wine.summaryReason);
+  return parts.join(" · ");
+}
+
+function determineScope(
+  wine: PrioritizedWine,
+  scopes: GenerationScope[],
+  maxWeight: number,
+  overallStats: AdaptiveDashboardData["overallStats"]
+): GenerationScope {
+  if (scopes.includes("unpracticed") && wine.stats.totalAttempts === 0) {
+    return "unpracticed";
+  }
+  if (scopes.includes("weakRegions")) {
+    const weakRegionNames = new Set(overallStats.weakRegions.map((r) => r.region));
+    const regionGroup = REGION_GROUPS.find((g) => g.key === matchRegionKey(wine.stats.region));
+    const regionName = regionGroup?.name || wine.stats.region;
+    if (weakRegionNames.has(regionName)) {
+      return "weakRegions";
+    }
+  }
+  return "highPriority";
+}
+
+export const scopeLabels: Record<GenerationScope, string> = {
+  highPriority: "高优先级酒款",
+  unpracticed: "未练习酒款",
+  weakRegions: "薄弱产区酒款",
+};
+
+export const scopeHints: Record<GenerationScope, string> = {
+  highPriority: "综合权重最高的酒款，包含错题多、记忆衰退等因素",
+  unpracticed: "从未进行过练习的新题，建议尽快覆盖",
+  weakRegions: "属于错误率最高产区的酒款，加强产区识别",
+};

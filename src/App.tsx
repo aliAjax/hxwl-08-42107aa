@@ -47,6 +47,7 @@ function App() {
   const [toast, setToast] = useState<{ message: string; tone: "warn" | "info" } | null>(null);
   const [dashboardRefreshSignal, setDashboardRefreshSignal] = useState(0);
   const [profileRefreshSignal, setProfileRefreshSignal] = useState(0);
+  const [reviewPlanRefreshSignal, setReviewPlanRefreshSignal] = useState(0);
   const lexiconRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,6 +57,10 @@ function App() {
 
   const triggerProfileRefresh = useCallback(() => {
     setProfileRefreshSignal((s) => s + 1);
+  }, []);
+
+  const triggerReviewPlanRefresh = useCallback(() => {
+    setReviewPlanRefreshSignal((s) => s + 1);
   }, []);
 
   const { records, loading, error, addRecord, updateRecord, deleteRecord } = useWineRecords();
@@ -378,6 +383,7 @@ function App() {
         records={records}
         onAromaClick={handleAromaClick}
         onRefreshSignal={dashboardRefreshSignal}
+        onReviewPlanGenerated={triggerReviewPlanRefresh}
       />
 
       {selectedRegionKey ? (
@@ -586,7 +592,7 @@ function App() {
         </div>
       </section>
 
-      <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} />
+      <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} refreshSignal={reviewPlanRefreshSignal} />
 
       <WineComparison onAromaClick={handleAromaClick} />
 
