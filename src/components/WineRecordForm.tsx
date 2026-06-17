@@ -105,7 +105,6 @@ export default function WineRecordForm({
     return aromaKeywords.some((k) => k.name === name);
   };
 
-  const selectedLexiconAromas = formData.aromas.filter(isLexiconAroma);
   const selectedCustomAromas = formData.aromas.filter((a) => !isLexiconAroma(a));
 
   const filteredAromasByCategory = useMemo(() => {
