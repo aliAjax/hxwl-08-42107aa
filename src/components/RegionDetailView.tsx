@@ -72,14 +72,12 @@ export default function RegionDetailView({
             <strong>{formatLastPracticed(stat.lastPracticed)}</strong>
           </div>
         </div>
-        {regionRecords.length > 0 && (
-          <button
-            className="primary-action region-detail-practice-btn"
-            onClick={() => onStartExamForRegion(stat.key, stat.name)}
-          >
-            📝 按当前产区练习
-          </button>
-        )}
+        <button
+          className="primary-action region-detail-practice-btn"
+          onClick={() => onStartExamForRegion(stat.key, stat.name)}
+        >
+          📝 按当前产区练习
+        </button>
       </div>
 
       <div className="region-detail-progress">

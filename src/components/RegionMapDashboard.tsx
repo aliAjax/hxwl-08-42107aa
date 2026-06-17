@@ -144,15 +144,13 @@ function RegionTile({ stat, onClick, onStartExam }: RegionTileProps) {
         </div>
       </button>
 
-      {stat.count > 0 && (
-        <button
-          className="region-practice-btn"
-          onClick={handleStartExam}
-          title="按当前产区练习"
-        >
-          📝 产区练习
-        </button>
-      )}
+      <button
+        className="region-practice-btn"
+        onClick={handleStartExam}
+        title="按当前产区练习"
+      >
+        📝 产区练习
+      </button>
     </div>
   );
 }
