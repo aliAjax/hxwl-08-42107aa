@@ -118,20 +118,20 @@ export async function seedDatabaseIfEmpty(): Promise<WineRecord[]> {
     return seedLock;
   }
 
-  const hasSeeded = localStorage.getItem(SEEDED_FLAG_KEY) === "1";
-  const existing = await getAllRecords();
-
-  if (hasSeeded) {
-    return existing;
-  }
-
-  if (existing.length > 0) {
-    localStorage.setItem(SEEDED_FLAG_KEY, "1");
-    return existing;
-  }
-
   seedLock = (async () => {
     try {
+      const hasSeeded = localStorage.getItem(SEEDED_FLAG_KEY) === "1";
+      const existing = await getAllRecords();
+
+      if (hasSeeded) {
+        return existing;
+      }
+
+      if (existing.length > 0) {
+        localStorage.setItem(SEEDED_FLAG_KEY, "1");
+        return existing;
+      }
+
       const results: WineRecord[] = [];
       for (const seed of seedRecords) {
         const record = await addRecord(seed);
