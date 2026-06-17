@@ -281,7 +281,10 @@ export function seedDemoHistoryIfEmpty(records: WineRecord[]): void {
     sessionName: string,
     pickFn: (m: typeof demoAttempts[0]) => boolean
   ): QuizSession | null {
-    const picked = demoAttempts.filter(pickFn);
+    const picked = demoAttempts.filter((p) => {
+      if (!pickFn(p)) return false;
+      return sessionIndex < p.mistakes.length;
+    });
     if (picked.length === 0) return null;
 
     const attempts: QuizAttemptDetail[] = picked.map((p) => {
@@ -766,4 +769,92 @@ export function buildAdaptiveDashboard(records: WineRecord[]): AdaptiveDashboard
 export function clearAllHistory(): void {
   localStorage.removeItem(HISTORY_STORAGE_KEY);
   localStorage.removeItem(SEED_HISTORY_FLAG);
+}
+
+export function weightedSampleCards(
+  pool: WineCard[],
+  count: number,
+  records: WineRecord[]
+): WineCard[] {
+  if (pool.length === 0) return [];
+  const effective = Math.min(count, pool.length);
+
+  const prioritized = prioritizeWines(records);
+  const weightMap = new Map<string, number>();
+  for (const pw of prioritized) {
+    if (pw.stats.source === "wineCard") {
+      weightMap.set(pw.stats.id, pw.finalWeight);
+    }
+  }
+
+  const items = pool.map((card) => ({
+    card,
+    weight: weightMap.get(card.id) ?? 1.0,
+  }));
+
+  const result: WineCard[] = [];
+  const remaining = [...items];
+
+  for (let i = 0; i < effective; i++) {
+    const totalWeight = remaining.reduce((s, item) => s + item.weight, 0);
+    let rand = Math.random() * totalWeight;
+    let chosenIndex = 0;
+
+    for (let j = 0; j < remaining.length; j++) {
+      rand -= remaining[j].weight;
+      if (rand <= 0) {
+        chosenIndex = j;
+        break;
+      }
+    }
+
+    result.push(remaining[chosenIndex].card);
+    remaining.splice(chosenIndex, 1);
+  }
+
+  return result;
+}
+
+export function weightedSampleRecords(
+  pool: WineRecord[],
+  count: number,
+  records: WineRecord[]
+): WineRecord[] {
+  if (pool.length === 0) return [];
+  const effective = Math.min(count, pool.length);
+
+  const prioritized = prioritizeWines(records);
+  const weightMap = new Map<string, number>();
+  for (const pw of prioritized) {
+    if (pw.stats.source === "wineRecord") {
+      weightMap.set(pw.stats.id, pw.finalWeight);
+    }
+  }
+
+  const items = pool.map((record) => ({
+    record,
+    weight: weightMap.get(record.id) ?? 1.0,
+  }));
+
+  const result: WineRecord[] = [];
+  const remaining = [...items];
+
+  for (let i = 0; i < effective; i++) {
+    const totalWeight = remaining.reduce((s, item) => s + item.weight, 0);
+    let rand = Math.random() * totalWeight;
+    let chosenIndex = 0;
+
+    for (let j = 0; j < remaining.length; j++) {
+      rand -= remaining[j].weight;
+      if (rand <= 0) {
+        chosenIndex = j;
+        break;
+      }
+    }
+
+    result.push(remaining[chosenIndex].record);
+    remaining.splice(chosenIndex, 1);
+  }
+
+  return result;
 }

@@ -235,7 +235,7 @@ function App() {
 
       <BlindTastingCard onAromaClick={handleAromaClick} />
 
-      <BlindQuiz onAromaClick={handleAromaClick} />
+      <BlindQuiz onAromaClick={handleAromaClick} records={records} />
 
       <ExamPanel records={records} onAromaClick={handleAromaClick} />
 

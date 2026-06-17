@@ -10,7 +10,9 @@ import {
   QuizSession,
   QuizAttemptDetail,
   MistakeType,
+  weightedSampleCards,
 } from "../data/adaptiveReview";
+import { WineRecord } from "../data/wineRecordTypes";
 
 type QuizPhase = "setup" | "quiz" | "result";
 
@@ -70,9 +72,10 @@ function getPool(scope: RegionScopeOption): WineCard[] {
 
 interface BlindQuizProps {
   onAromaClick?: (aroma: string) => void;
+  records: WineRecord[];
 }
 
-export default function BlindQuiz({ onAromaClick }: BlindQuizProps) {
+export default function BlindQuiz({ onAromaClick, records }: BlindQuizProps) {
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [scopeValue, setScopeValue] = useState("all");
   const [desiredCount, setDesiredCount] = useState(5);
@@ -112,7 +115,7 @@ export default function BlindQuiz({ onAromaClick }: BlindQuizProps) {
   }, [phase, startTime]);
 
   const startQuiz = useCallback(() => {
-    const picked = shuffle(pool).slice(0, effectiveCount);
+    const picked = weightedSampleCards(pool, effectiveCount, records);
     const now = Date.now();
     setQuestions(
       picked.map((card) => ({
@@ -135,7 +138,7 @@ export default function BlindQuiz({ onAromaClick }: BlindQuizProps) {
       });
     }, 0);
     setPhase("quiz");
-  }, [pool, effectiveCount]);
+  }, [pool, effectiveCount, records]);
 
   const updateAnswer = useCallback(
     (field: keyof UserAnswer, value: string) => {

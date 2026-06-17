@@ -5,6 +5,7 @@ import {
   QuizSession,
   QuizAttemptDetail,
   MistakeType,
+  weightedSampleRecords,
 } from "../data/adaptiveReview";
 
 type ExamPhase = "setup" | "quiz" | "result";
@@ -217,7 +218,7 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
     }
 
     const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
-    const picked = shuffle(selectedRecords).slice(0, effectiveCount);
+    const picked = weightedSampleRecords(selectedRecords, effectiveCount, records);
 
     setQuestions(
       picked.map((record) => ({
