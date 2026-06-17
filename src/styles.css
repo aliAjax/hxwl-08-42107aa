@@ -1459,7 +1459,346 @@ input {
   border-radius: 0 8px 8px 0;
 }
 
+.wine-comparison {
+  margin-bottom: 20px;
+}
+
+.comparison-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.comparison-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.comparison-tabs button.tab-active {
+  background: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.comparison-tabs .tab-count {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.comparison-tabs button.tab-active .tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: #64748b;
+}
+
+.empty-icon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.empty-state p {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.comparison-list {
+  display: grid;
+  gap: 14px;
+}
+
+.comparison-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.comparison-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  box-shadow: 0 4px 16px rgba(159, 18, 57, 0.08);
+}
+
+.comparison-card.expanded {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+
+.comparison-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.comparison-titles {
+  min-width: 0;
+}
+
+.wines-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.wine-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #172033;
+}
+
+.vs-divider {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, #ffffff);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.comparison-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.difficulty-badge {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wine-grapes {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.comparison-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.review-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.review-toggle-btn:hover {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.review-toggle-btn.in-review {
+  background: color-mix(in srgb, var(--warn) 12%, #ffffff);
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--border));
+  color: var(--warn);
+}
+
+.star-icon {
+  font-size: 14px;
+}
+
+.expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.expand-btn:hover {
+  background: color-mix(in srgb, var(--primary) 8%, #ffffff);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.chevron {
+  font-size: 10px;
+  transition: transform 0.3s ease;
+}
+
+.chevron.up {
+  transform: rotate(180deg);
+}
+
+.comparison-content {
+  padding: 0 20px 20px;
+  display: grid;
+  gap: 20px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.content-section {
+  background: #fbfdff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+
+.content-section.similarities {
+  border-left: 4px solid var(--accent);
+}
+
+.content-section.distinguishing {
+  border-left: 4px solid var(--primary);
+}
+
+.content-section.misjudgment {
+  border-left: 4px solid var(--warn);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #172033;
+  margin: 0 0 12px;
+}
+
+.section-icon {
+  font-size: 18px;
+}
+
+.bullet-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.bullet-list li {
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.warning-list li {
+  color: #92400e;
+}
+
+.clues-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.wine-clues {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.wine-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.clue-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.clue-list li {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+.clue-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.wine-aromas {
+  display: grid;
+  gap: 6px;
+}
+
+.aromas-label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
 @media (max-width: 860px) {
+  .clues-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-header {
+    flex-direction: column;
+  }
+
+  .comparison-actions {
+    width: 100%;
+  }
+
+  .comparison-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+
   .hero,
   .workspace,
   .metrics-grid {

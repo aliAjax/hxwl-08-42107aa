@@ -4,7 +4,9 @@ import BlindTastingCard from "./components/BlindTastingCard";
 import BlindQuiz from "./components/BlindQuiz";
 import AromaLexicon from "./components/AromaLexicon";
 import ReviewPlan, { ReviewRecord } from "./components/ReviewPlan";
+import WineComparison from "./components/WineComparison";
 import { aromaKeywords } from "./data/aromaData";
+import { wineComparisons } from "./data/wineData";
 
 const project = {
   "id": "hxwl-08",
@@ -118,6 +120,9 @@ function App() {
   }));
 
   const values = project.metrics.map((metric: string, index: number) => {
+    if (metric === "易混淆酒款") {
+      return String(wineComparisons.length);
+    }
     const base = [84, 12, 31, 7][index % 4];
     return String(base + index * 3);
   });
@@ -227,6 +232,8 @@ function App() {
       </section>
 
       <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} />
+
+      <WineComparison onAromaClick={handleAromaClick} />
 
       {toast && (
         <div
