@@ -8,6 +8,7 @@ import WineComparison from "./components/WineComparison";
 import WineRecordForm from "./components/WineRecordForm";
 import RegionMapDashboard from "./components/RegionMapDashboard";
 import RegionDetailView from "./components/RegionDetailView";
+import ExamPanel from "./components/ExamPanel";
 import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
@@ -229,6 +230,8 @@ function App() {
       <BlindTastingCard onAromaClick={handleAromaClick} />
 
       <BlindQuiz onAromaClick={handleAromaClick} />
+
+      <ExamPanel records={records} onAromaClick={handleAromaClick} />
 
       {selectedRegionKey ? (
         <RegionDetailView
