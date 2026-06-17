@@ -1,5 +1,5 @@
 import "./styles.css";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
 import BlindQuiz from "./components/BlindQuiz";
 import AromaLexicon from "./components/AromaLexicon";
@@ -68,6 +68,12 @@ function App() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [selectedRegionKey, setSelectedRegionKey] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [filterCountry, setFilterCountry] = useState<string>("");
+  const [filterRegion, setFilterRegion] = useState<string>("");
+  const [filterGrape, setFilterGrape] = useState<string>("");
+  const [filterAroma, setFilterAroma] = useState<string>("");
 
   const showToast = useCallback((message: string, tone: "warn" | "info" = "warn") => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -165,6 +171,78 @@ function App() {
   const handleBackToMap = useCallback(() => {
     setSelectedRegionKey(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const filterOptions = useMemo(() => {
+    const countries = new Set<string>();
+    const regions = new Set<string>();
+    const grapes = new Set<string>();
+    const aromas = new Set<string>();
+    records.forEach((r) => {
+      if (r.country) countries.add(r.country);
+      if (r.region) regions.add(r.region);
+      if (r.grape) grapes.add(r.grape);
+      r.aromas.forEach((a) => aromas.add(a));
+    });
+    return {
+      countries: Array.from(countries).sort(),
+      regions: Array.from(regions).sort(),
+      grapes: Array.from(grapes).sort(),
+      aromas: Array.from(aromas).sort(),
+    };
+  }, [records]);
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      searchQuery.trim() !== "" ||
+      filterCountry !== "" ||
+      filterRegion !== "" ||
+      filterGrape !== "" ||
+      filterAroma !== ""
+    );
+  }, [searchQuery, filterCountry, filterRegion, filterGrape, filterAroma]);
+
+  const filteredRecords = useMemo(() => {
+    let result = records;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((r) =>
+        [
+          r.name,
+          r.region,
+          r.country,
+          r.grape,
+          r.year ?? "",
+          r.characteristic,
+          r.notes ?? "",
+          ...r.aromas,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    if (filterCountry) {
+      result = result.filter((r) => r.country === filterCountry);
+    }
+    if (filterRegion) {
+      result = result.filter((r) => r.region === filterRegion);
+    }
+    if (filterGrape) {
+      result = result.filter((r) => r.grape === filterGrape);
+    }
+    if (filterAroma) {
+      result = result.filter((r) => r.aromas.includes(filterAroma));
+    }
+    return result;
+  }, [records, searchQuery, filterCountry, filterRegion, filterGrape, filterAroma]);
+
+  const clearAllFilters = useCallback(() => {
+    setSearchQuery("");
+    setFilterCountry("");
+    setFilterRegion("");
+    setFilterGrape("");
+    setFilterAroma("");
   }, []);
 
   const reviewRecords: ReviewRecord[] = records.map((record) => ({
@@ -286,11 +364,104 @@ function App() {
             <h2>近期记录</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span className="records-count">共 {records.length} 条</span>
+            <span className="records-count">
+              {hasActiveFilters
+                ? `筛选结果 ${filteredRecords.length} / 共 ${records.length} 条`
+                : `共 ${records.length} 条`}
+            </span>
             <button className="primary-action" onClick={handleOpenAddForm}>
               新增记录
             </button>
           </div>
+        </div>
+
+        <div className="records-filter-bar">
+          <div className="search-input-wrapper">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="搜索酒名、产区、品种、香气关键词..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                className="search-clear-btn"
+                onClick={() => setSearchQuery("")}
+                aria-label="清除搜索"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="filter-selects">
+            <label className="filter-select-label">
+              <span>国家</span>
+              <select
+                className="filter-select"
+                value={filterCountry}
+                onChange={(e) => setFilterCountry(e.target.value)}
+              >
+                <option value="">全部</option>
+                {filterOptions.countries.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-select-label">
+              <span>产区</span>
+              <select
+                className="filter-select"
+                value={filterRegion}
+                onChange={(e) => setFilterRegion(e.target.value)}
+              >
+                <option value="">全部</option>
+                {filterOptions.regions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-select-label">
+              <span>葡萄品种</span>
+              <select
+                className="filter-select"
+                value={filterGrape}
+                onChange={(e) => setFilterGrape(e.target.value)}
+              >
+                <option value="">全部</option>
+                {filterOptions.grapes.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-select-label">
+              <span>香气</span>
+              <select
+                className="filter-select"
+                value={filterAroma}
+                onChange={(e) => setFilterAroma(e.target.value)}
+              >
+                <option value="">全部</option>
+                {filterOptions.aromas.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {hasActiveFilters && (
+            <button className="clear-filters-btn" onClick={clearAllFilters}>
+              清除所有筛选
+            </button>
+          )}
         </div>
 
         {loading && <div className="records-loading">加载中...</div>}
@@ -304,15 +475,28 @@ function App() {
           </div>
         )}
 
+        {!loading && !error && records.length > 0 && filteredRecords.length === 0 && (
+          <div className="empty-state">
+            <span className="empty-icon">🔍</span>
+            <p>没有匹配的记录</p>
+            <p className="empty-hint">试试调整搜索关键词或筛选条件</p>
+            <button className="clear-filters-btn" style={{ marginTop: "12px" }} onClick={clearAllFilters}>
+              清除所有筛选
+            </button>
+          </div>
+        )}
+
         <div className="record-list">
-          {records.map((record: WineRecord, index: number) => (
+          {filteredRecords.map((record: WineRecord, index: number) => (
             <article key={record.id} className="record-card">
               <div className="record-index">{String(index + 1).padStart(2, "0")}</div>
               <div className="record-card-header">
                 <div className="record-card-main">
                   <h3>{record.name}</h3>
                   <p>
-                    {[record.grape, record.region, record.year].filter(Boolean).join(" · ")}
+                    {[record.grape, record.region, record.country, record.year]
+                      .filter(Boolean)
+                      .join(" · ")}
                     {record.aromas.length > 0 && (
                       <span className="record-aromas">
                         {record.aromas.map((a: string) => (
