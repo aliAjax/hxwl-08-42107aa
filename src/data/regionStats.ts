@@ -169,8 +169,9 @@ export function computeRegionDetail(
   const weakGrapes: WeakGrapeSummary[] = Object.entries(grapeMap)
     .map(([grape, grapeRecords]) => {
       const count = grapeRecords.length;
-      const errorRate = Math.round(15 + seededRatio(regionKey + "-" + grape + "-error") * 45);
-      const errorCount = count > 0 ? Math.round(count * errorRate / 100) : 0;
+      const targetErrorRate = Math.round(15 + seededRatio(regionKey + "-" + grape + "-error") * 45);
+      const errorCount = count > 0 ? Math.round(count * targetErrorRate / 100) : 0;
+      const errorRate = count > 0 ? Math.round((errorCount / count) * 100) : 0;
       return {
         grape,
         count,
