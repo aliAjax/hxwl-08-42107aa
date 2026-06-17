@@ -99,8 +99,19 @@ export function matchRegionKey(region: string): string | null {
   return null;
 }
 
+function hashString(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function seededRatio(seed: string): number {
+  return (hashString(seed) % 1000) / 1000;
+}
+
 export function computeRegionStats(records: WineRecord[]): RegionStat[] {
-  const now = Date.now();
   const regionRecordsMap: Record<string, WineRecord[]> = {};
 
   for (const record of records) {
@@ -115,7 +126,9 @@ export function computeRegionStats(records: WineRecord[]): RegionStat[] {
   return REGION_GROUPS.map((group) => {
     const regionRecords = regionRecordsMap[group.key] || [];
     const count = regionRecords.length;
-    const accuracy = count > 0 ? Math.round(65 + Math.random() * 30) : 0;
+    const accuracy = count > 0
+      ? Math.round(60 + seededRatio(group.key + "-accuracy") * 35)
+      : 0;
     const lastPracticed =
       count > 0
         ? Math.max(...regionRecords.map((r) => r.updatedAt || r.createdAt))
@@ -156,12 +169,13 @@ export function computeRegionDetail(
   const weakGrapes: WeakGrapeSummary[] = Object.entries(grapeMap)
     .map(([grape, grapeRecords]) => {
       const count = grapeRecords.length;
-      const errorCount = Math.max(0, Math.floor(count * (0.2 + Math.random() * 0.4)));
+      const errorRate = Math.round(15 + seededRatio(regionKey + "-" + grape + "-error") * 45);
+      const errorCount = count > 0 ? Math.round(count * errorRate / 100) : 0;
       return {
         grape,
         count,
         errorCount,
-        errorRate: count > 0 ? Math.round((errorCount / count) * 100) : 0,
+        errorRate,
         sampleRecords: grapeRecords.slice(0, 3),
       };
     })
