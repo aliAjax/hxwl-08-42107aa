@@ -70,15 +70,32 @@ interface ExamPanelProps {
   records: WineRecord[];
   onAromaClick?: (aroma: string) => void;
   onProfileSynced?: () => void;
+  presetRecordIds?: string[];
+  presetExamName?: string;
+  onPresetCleared?: () => void;
 }
 
-export default function ExamPanel({ records, onAromaClick, onProfileSynced }: ExamPanelProps) {
+export default function ExamPanel({
+  records,
+  onAromaClick,
+  onProfileSynced,
+  presetRecordIds,
+  presetExamName,
+  onPresetCleared,
+}: ExamPanelProps) {
   const [phase, setPhase] = useState<ExamPhase>("setup");
-  const [examName, setExamName] = useState("");
+  const [examName, setExamName] = useState(presetExamName || "");
   const [questionCount, setQuestionCount] = useState(5);
   const [timeLimit, setTimeLimit] = useState(0);
   const [showHints, setShowHints] = useState(true);
-  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(
+    presetRecordIds ? new Set(presetRecordIds) : new Set()
+  );
+  const [insufficientRecords, setInsufficientRecords] = useState<{
+    show: boolean;
+    available: number;
+    required: number;
+  } | null>(null);
 
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -113,6 +130,15 @@ export default function ExamPanel({ records, onAromaClick, onProfileSynced }: Ex
   const clearSelection = useCallback(() => {
     setSelectedRecordIds(new Set());
   }, []);
+
+  useEffect(() => {
+    if (presetRecordIds) {
+      setSelectedRecordIds(new Set(presetRecordIds));
+    }
+    if (presetExamName) {
+      setExamName(presetExamName);
+    }
+  }, [presetRecordIds, presetExamName]);
 
   useEffect(() => {
     if (phase !== "quiz" || startTime === null) return;
@@ -221,6 +247,16 @@ export default function ExamPanel({ records, onAromaClick, onProfileSynced }: Ex
       setExamName("未命名测验");
     }
 
+    if (selectedRecordIds.size < questionCount) {
+      setInsufficientRecords({
+        show: true,
+        available: selectedRecordIds.size,
+        required: questionCount,
+      });
+      return;
+    }
+
+    setInsufficientRecords(null);
     const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
     const picked = weightedSampleRecords(selectedRecords, effectiveCount, records);
 
@@ -248,7 +284,38 @@ export default function ExamPanel({ records, onAromaClick, onProfileSynced }: Ex
     }, 0);
     setPhase("quiz");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [records, selectedRecordIds, examName, effectiveCount]);
+  }, [records, selectedRecordIds, examName, effectiveCount, questionCount]);
+
+  const startQuizWithInsufficient = useCallback(() => {
+    setInsufficientRecords(null);
+    const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
+    const picked = weightedSampleRecords(selectedRecords, effectiveCount, records);
+
+    setQuestions(
+      picked.map((record) => ({
+        record,
+        answer: { region: "", grape: "", reasoning: "" },
+      }))
+    );
+    setCurrentIndex(0);
+    const now = Date.now();
+    setStartTime(now);
+    setElapsed(0);
+    setTimeUp(false);
+    setResults([]);
+    setConfirmingQuit(false);
+    setQuestionStartTimes(picked.map(() => 0));
+    setQuestionEndTimes(picked.map(() => 0));
+    setTimeout(() => {
+      setQuestionStartTimes((prev) => {
+        const next = [...prev];
+        next[0] = Date.now();
+        return next;
+      });
+    }, 0);
+    setPhase("quiz");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [records, selectedRecordIds, effectiveCount]);
 
   const updateAnswer = useCallback(
     (field: keyof UserAnswer, value: string) => {
@@ -316,7 +383,9 @@ export default function ExamPanel({ records, onAromaClick, onProfileSynced }: Ex
     setQuestionCount(5);
     setTimeLimit(0);
     setShowHints(true);
-  }, [restart]);
+    setInsufficientRecords(null);
+    onPresetCleared?.();
+  }, [restart, onPresetCleared]);
 
   if (phase === "setup") {
     return (
@@ -337,6 +406,49 @@ export default function ExamPanel({ records, onAromaClick, onProfileSynced }: Ex
         <p className="exam-intro">
           从现有盲品记录中勾选题目，设置考试参数后生成一套本地可运行的测验。
         </p>
+
+        {presetRecordIds && presetRecordIds.length > 0 && (
+          <div className="preset-notice">
+            <span className="preset-icon">📍</span>
+            <div className="preset-content">
+              <p className="preset-title">已按产区预选题目</p>
+              <p className="preset-desc">
+                已自动勾选该产区的 <strong>{presetRecordIds.length}</strong> 条记录。
+                你可以调整题量或手动增减题目后开始测验。
+              </p>
+            </div>
+            <button className="preset-clear-btn" onClick={onPresetCleared}>
+              清除预选
+            </button>
+          </div>
+        )}
+
+        {insufficientRecords?.show && (
+          <div className="insufficient-records-dialog">
+            <div className="insufficient-header">
+              <span className="insufficient-icon">⚠️</span>
+              <h3>记录数量不足</h3>
+            </div>
+            <p className="insufficient-desc">
+              当前已勾选 <strong>{insufficientRecords.available}</strong> 条记录，
+              但你设置的题量为 <strong>{insufficientRecords.required}</strong> 题。
+            </p>
+            <p className="insufficient-suggestion">
+              建议先添加更多该产区的记录，或降低题量后再开始。
+            </p>
+            <div className="insufficient-actions">
+              <button onClick={() => setInsufficientRecords(null)}>
+                返回调整
+              </button>
+              <button
+                className="primary-action"
+                onClick={startQuizWithInsufficient}
+              >
+                仍以 {insufficientRecords.available} 题开始
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="exam-config">
           <div className="exam-config-row">

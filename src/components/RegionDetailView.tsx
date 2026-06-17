@@ -11,6 +11,7 @@ interface RegionDetailViewProps {
   regionKey: string;
   onBack: () => void;
   onAromaClick?: (aroma: string) => void;
+  onStartExamForRegion: (regionKey: string, regionName: string) => void;
 }
 
 export default function RegionDetailView({
@@ -18,6 +19,7 @@ export default function RegionDetailView({
   regionKey,
   onBack,
   onAromaClick,
+  onStartExamForRegion,
 }: RegionDetailViewProps) {
   const detail = useMemo(
     () => computeRegionDetail(records, regionKey),
@@ -70,6 +72,14 @@ export default function RegionDetailView({
             <strong>{formatLastPracticed(stat.lastPracticed)}</strong>
           </div>
         </div>
+        {regionRecords.length > 0 && (
+          <button
+            className="primary-action region-detail-practice-btn"
+            onClick={() => onStartExamForRegion(stat.key, stat.name)}
+          >
+            📝 按当前产区练习
+          </button>
+        )}
       </div>
 
       <div className="region-detail-progress">

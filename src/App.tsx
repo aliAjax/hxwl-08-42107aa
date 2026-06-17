@@ -15,6 +15,7 @@ import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
 import { WineRecordInput, WineRecord } from "./data/wineRecordTypes";
+import { matchRegionKey } from "./data/regionStats";
 
 const project = {
   id: "hxwl-08",
@@ -68,6 +69,11 @@ function App() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [selectedRegionKey, setSelectedRegionKey] = useState<string | null>(null);
+  const [examPreset, setExamPreset] = useState<{
+    recordIds: string[];
+    examName: string;
+  } | null>(null);
+  const examPanelRef = useRef<HTMLElement>(null);
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [filterCountry, setFilterCountry] = useState<string>("");
@@ -171,6 +177,38 @@ function App() {
   const handleBackToMap = useCallback(() => {
     setSelectedRegionKey(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const handleStartExamForRegion = useCallback(
+    (regionKey: string, regionName: string) => {
+      const regionRecords = records.filter(
+        (r) => matchRegionKey(r.region) === regionKey
+      );
+
+      if (regionRecords.length === 0) {
+        showToast("该产区暂无记录，无法开始练习", "warn");
+        return;
+      }
+
+      setExamPreset({
+        recordIds: regionRecords.map((r) => r.id),
+        examName: `产区练习 - ${regionName}`,
+      });
+
+      setTimeout(() => {
+        examPanelRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 100);
+
+      showToast(`已加载${regionRecords.length}条${regionName}记录到测验面板`, "info");
+    },
+    [records, showToast]
+  );
+
+  const handleClearExamPreset = useCallback(() => {
+    setExamPreset(null);
   }, []);
 
   const filterOptions = useMemo(() => {
@@ -325,11 +363,16 @@ function App() {
         onProfileSynced={triggerProfileRefresh}
       />
 
-      <ExamPanel
-        records={records}
-        onAromaClick={handleAromaClick}
-        onProfileSynced={triggerProfileRefresh}
-      />
+      <section ref={examPanelRef}>
+        <ExamPanel
+          records={records}
+          onAromaClick={handleAromaClick}
+          onProfileSynced={triggerProfileRefresh}
+          presetRecordIds={examPreset?.recordIds}
+          presetExamName={examPreset?.examName}
+          onPresetCleared={handleClearExamPreset}
+        />
+      </section>
 
       <AdaptiveDashboard
         records={records}
@@ -343,11 +386,13 @@ function App() {
           regionKey={selectedRegionKey}
           onBack={handleBackToMap}
           onAromaClick={handleAromaClick}
+          onStartExamForRegion={handleStartExamForRegion}
         />
       ) : (
         <RegionMapDashboard
           records={records}
           onSelectRegion={handleSelectRegion}
+          onStartExamForRegion={handleStartExamForRegion}
         />
       )}
 
