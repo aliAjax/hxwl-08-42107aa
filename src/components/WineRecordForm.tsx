@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { WineRecordInput } from "../data/wineRecordTypes";
-import { aromaKeywords, AromaKeyword } from "../data/aromaData";
+import { aromaKeywords, AromaKeyword, categoryConfig, AromaCategory } from "../data/aromaData";
 
 interface WineRecordFormProps {
   initialData?: WineRecordInput;
@@ -12,6 +12,7 @@ interface WineRecordFormProps {
 const acidityOptions = ["低", "中低", "中等", "中高", "高", "极高"];
 const tanninOptions = ["无", "低", "中低", "中等", "中高", "高", "极高"];
 const bodyOptions = ["轻盈", "轻盈到中等", "中等", "中等偏饱满", "饱满"];
+const aromaCategories: AromaCategory[] = ["水果", "花香", "草本", "橡木", "陈年风味"];
 
 export default function WineRecordForm({
   initialData,
@@ -34,6 +35,10 @@ export default function WineRecordForm({
     characteristic: "",
     notes: "",
   });
+  const [aromaSearchQuery, setAromaSearchQuery] = useState("");
+  const [customAromaInput, setCustomAromaInput] = useState("");
+  const [activeAromaCategory, setActiveAromaCategory] = useState<AromaCategory | "全部">("全部");
+  const customInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -60,6 +65,35 @@ export default function WineRecordForm({
     });
   };
 
+  const removeAroma = (aromaName: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      aromas: prev.aromas.filter((a) => a !== aromaName),
+    }));
+  };
+
+  const addCustomAroma = () => {
+    const trimmed = customAromaInput.trim();
+    if (!trimmed) return;
+    if (formData.aromas.includes(trimmed)) {
+      setCustomAromaInput("");
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      aromas: [...prev.aromas, trimmed],
+    }));
+    setCustomAromaInput("");
+    customInputRef.current?.focus();
+  };
+
+  const handleCustomAromaKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCustomAroma();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
@@ -67,13 +101,39 @@ export default function WineRecordForm({
 
   const isValid = formData.name.trim() && formData.region.trim() && formData.grape.trim();
 
-  const aromasByCategory = aromaKeywords.reduce((acc, aroma) => {
-    if (!acc[aroma.category]) {
-      acc[aroma.category] = [];
+  const isLexiconAroma = (name: string): boolean => {
+    return aromaKeywords.some((k) => k.name === name);
+  };
+
+  const selectedLexiconAromas = formData.aromas.filter(isLexiconAroma);
+  const selectedCustomAromas = formData.aromas.filter((a) => !isLexiconAroma(a));
+
+  const filteredAromasByCategory = useMemo(() => {
+    let filtered = aromaKeywords;
+    if (aromaSearchQuery.trim()) {
+      const q = aromaSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter(
+        (k) =>
+          k.name.toLowerCase().includes(q) ||
+          k.description.toLowerCase().includes(q) ||
+          k.grapes.some((g) => g.toLowerCase().includes(q)) ||
+          k.regions.some((r) => r.toLowerCase().includes(q))
+      );
     }
-    acc[aroma.category].push(aroma);
-    return acc;
-  }, {} as Record<string, AromaKeyword[]>);
+    if (activeAromaCategory !== "全部") {
+      filtered = filtered.filter((k) => k.category === activeAromaCategory);
+    }
+    const grouped = filtered.reduce((acc, aroma) => {
+      if (!acc[aroma.category]) {
+        acc[aroma.category] = [];
+      }
+      acc[aroma.category].push(aroma);
+      return acc;
+    }, {} as Record<string, AromaKeyword[]>);
+    return grouped;
+  }, [aromaSearchQuery, activeAromaCategory]);
+
+  const hasSearchResults = Object.keys(filteredAromasByCategory).length > 0;
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
@@ -219,26 +279,147 @@ export default function WineRecordForm({
               香气关键词
               <span className="form-hint">已选 {formData.aromas.length} 个</span>
             </h4>
-            <div className="aroma-selector">
-              {Object.entries(aromasByCategory).map(([category, aromas]) => (
-                <div key={category} className="aroma-category-group">
-                  <h5 className="aroma-category-title">{category}</h5>
-                  <div className="aroma-tag-list">
-                    {aromas.map((aroma) => (
-                      <button
-                        key={aroma.name}
-                        type="button"
-                        className={`aroma-select-tag ${
-                          formData.aromas.includes(aroma.name) ? "selected" : ""
-                        }`}
-                        onClick={() => toggleAroma(aroma.name)}
+
+            {formData.aromas.length > 0 && (
+              <div className="selected-aromas-section">
+                <span className="selected-aromas-label">已选香气：</span>
+                <div className="selected-aromas-list">
+                  {formData.aromas.map((aroma) => {
+                    const isLexicon = isLexiconAroma(aroma);
+                    return (
+                      <span
+                        key={aroma}
+                        className={`selected-aroma-chip ${isLexicon ? "is-lexicon" : "is-custom"}`}
                       >
-                        {aroma.name}
-                      </button>
-                    ))}
-                  </div>
+                        <span className="chip-text">{aroma}</span>
+                        <button
+                          type="button"
+                          className="chip-remove"
+                          onClick={() => removeAroma(aroma)}
+                          title={`移除「${aroma}」`}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+            )}
+
+            <div className="aroma-selector-toolbar">
+              <div className="aroma-search-wrapper">
+                <span className="aroma-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="aroma-search-input"
+                  placeholder="搜索香气关键词、品种、产区..."
+                  value={aromaSearchQuery}
+                  onChange={(e) => setAromaSearchQuery(e.target.value)}
+                />
+                {aromaSearchQuery && (
+                  <button
+                    type="button"
+                    className="aroma-search-clear"
+                    onClick={() => setAromaSearchQuery("")}
+                    title="清除搜索"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="aroma-category-tabs">
+              <button
+                type="button"
+                className={`aroma-category-tab ${activeAromaCategory === "全部" ? "active" : ""}`}
+                onClick={() => setActiveAromaCategory("全部")}
+              >
+                全部
+              </button>
+              {aromaCategories.map((cat) => {
+                const cfg = categoryConfig[cat];
+                const isActive = activeAromaCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`aroma-category-tab ${isActive ? "active" : ""}`}
+                    style={isActive ? { background: cfg.color, borderColor: cfg.color } : undefined}
+                    onClick={() => setActiveAromaCategory(cat)}
+                  >
+                    <span>{cfg.icon}</span>
+                    {cfg.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="aroma-selector">
+              {hasSearchResults ? (
+                Object.entries(filteredAromasByCategory).map(([category, aromas]) => {
+                  const cfg = categoryConfig[category as AromaCategory];
+                  return (
+                    <div key={category} className="aroma-category-group">
+                      <h5 className="aroma-category-title" style={{ color: cfg?.color }}>
+                        {cfg?.icon} {category}
+                      </h5>
+                      <div className="aroma-tag-list">
+                        {aromas.map((aroma) => (
+                          <button
+                            key={aroma.name}
+                            type="button"
+                            className={`aroma-select-tag ${
+                              formData.aromas.includes(aroma.name) ? "selected" : ""
+                            }`}
+                            onClick={() => toggleAroma(aroma.name)}
+                            title={aroma.description}
+                          >
+                            {aroma.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="aroma-no-results">
+                  <span className="no-results-icon">🔍</span>
+                  <p>没有找到匹配的香气关键词</p>
+                  <p className="no-results-hint">
+                    试试其他搜索词，或在下方添加自定义香气
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="custom-aroma-section">
+              <span className="custom-aroma-label">补充自定义香气：</span>
+              <div className="custom-aroma-input-row">
+                <input
+                  ref={customInputRef}
+                  type="text"
+                  className="custom-aroma-input"
+                  placeholder="输入自定义香气名称，如：蓝莓、焦糖..."
+                  value={customAromaInput}
+                  onChange={(e) => setCustomAromaInput(e.target.value)}
+                  onKeyDown={handleCustomAromaKeyDown}
+                />
+                <button
+                  type="button"
+                  className="custom-aroma-add-btn"
+                  onClick={addCustomAroma}
+                  disabled={!customAromaInput.trim() || formData.aromas.includes(customAromaInput.trim())}
+                >
+                  添加
+                </button>
+              </div>
+              {selectedCustomAromas.length > 0 && (
+                <p className="custom-aroma-hint">
+                  💡 自定义香气（共 {selectedCustomAromas.length} 个）保存后可正常显示与记录，但香气词库中暂无详细解析
+                </p>
+              )}
             </div>
           </div>
 
