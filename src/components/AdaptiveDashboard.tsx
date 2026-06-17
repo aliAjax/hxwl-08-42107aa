@@ -8,6 +8,7 @@ import {
   ConfusionPair,
   clearAllHistory,
 } from "../data/adaptiveReview";
+import { syncConfusionPairsToProfile } from "../data/learningProfileSync";
 
 interface AdaptiveDashboardProps {
   records: WineRecord[];
@@ -68,6 +69,15 @@ export default function AdaptiveDashboard({
   const dashboard: AdaptiveDashboardData = useMemo(() => {
     return buildAdaptiveDashboard(records);
   }, [records, rebuildTrigger, onRefreshSignal]);
+
+  useEffect(() => {
+    const pairsWithConfusion = dashboard.confusionPairs.filter(
+      (p) => p.mutualConfusionCount > 0
+    );
+    if (pairsWithConfusion.length > 0) {
+      syncConfusionPairsToProfile(pairsWithConfusion);
+    }
+  }, [dashboard.confusionPairs]);
 
   const maxWeight = useMemo(() => {
     if (dashboard.prioritizedWines.length === 0) return 1;

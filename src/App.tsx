@@ -348,7 +348,7 @@ function App() {
 
       <WineComparison onAromaClick={handleAromaClick} />
 
-      <LearningProfilePanel />
+      <LearningProfilePanel records={records} />
 
       {formState.open && (
         <WineRecordForm

@@ -13,6 +13,7 @@ import {
   weightedSampleCards,
 } from "../data/adaptiveReview";
 import { WineRecord } from "../data/wineRecordTypes";
+import { syncQuizSessionToProfile } from "../data/learningProfileSync";
 
 type QuizPhase = "setup" | "quiz" | "result";
 
@@ -253,6 +254,7 @@ export default function BlindQuiz({ onAromaClick, records }: BlindQuizProps) {
       overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
     };
     saveQuizSession(session);
+    syncQuizSessionToProfile(session);
 
     setResults(computed);
     setPhase("result");

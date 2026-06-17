@@ -7,6 +7,7 @@ import {
   MistakeType,
   weightedSampleRecords,
 } from "../data/adaptiveReview";
+import { syncQuizSessionToProfile } from "../data/learningProfileSync";
 
 type ExamPhase = "setup" | "quiz" | "result";
 
@@ -203,6 +204,7 @@ export default function ExamPanel({ records, onAromaClick }: ExamPanelProps) {
         overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
       };
       saveQuizSession(session);
+      syncQuizSessionToProfile(session);
 
       setResults(computed);
       setPhase("result");

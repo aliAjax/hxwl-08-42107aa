@@ -73,6 +73,7 @@ export interface ImportSummary {
   confusionItemsInvalid: number;
   migratedFields: string[];
   rollbackAvailable: boolean;
+  duplicateMode: ImportMode;
 }
 
 export interface RollbackSnapshot {

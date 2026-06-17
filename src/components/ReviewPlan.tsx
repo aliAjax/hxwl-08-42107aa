@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { syncReviewTasksToProfile } from "../data/learningProfileSync";
 
 export interface ReviewRecord {
   name: string;
@@ -91,6 +92,26 @@ export default function ReviewPlan({ records, onAromaClick }: ReviewPlanProps) {
       // ignore storage errors (e.g. private browsing)
     }
   }, [completedTasks]);
+
+  useEffect(() => {
+    const allTasks = stageOrder.flatMap((stage) => {
+      const scheduledDate = addDays(today, stageConfig[stage].offset);
+      const dateKey = formatDateKey(scheduledDate);
+      return records.map((record, index) => {
+        const id = `${index}-${stage}-${dateKey}`;
+        return {
+          id,
+          wineName: record.name,
+          grape: record.grape,
+          stage: stage as "today" | "three-days" | "one-week",
+          scheduledDate,
+          completed: Boolean(completedTasks[id]),
+          completedAt: completedTasks[id] ? Date.now() : null,
+        };
+      });
+    });
+    syncReviewTasksToProfile(allTasks);
+  }, [records, today, completedTasks]);
 
   const toggleTask = useCallback((taskId: string) => {
     setCompletedTasks((prev) => {

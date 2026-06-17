@@ -204,20 +204,15 @@ function deduplicateById<T extends { id: string }>(
   mode: ImportMode
 ): { toAdd: T[]; duplicates: number } {
   const existingIds = new Set(existing.map((e) => e.id));
+  const duplicateCount = incoming.filter((item) => existingIds.has(item.id)).length;
 
   if (mode === "skip") {
     const toAdd = incoming.filter((item) => !existingIds.has(item.id));
-    return { toAdd, duplicates: incoming.length - toAdd.length };
+    return { toAdd, duplicates: duplicateCount };
   }
 
   if (mode === "overwrite") {
-    const toAdd = incoming.map((item) => {
-      if (existingIds.has(item.id)) {
-        return { ...item, id: item.id + "_imported_" + Date.now().toString(36) };
-      }
-      return item;
-    });
-    return { toAdd, duplicates: incoming.filter((item) => existingIds.has(item.id)).length };
+    return { toAdd: incoming, duplicates: duplicateCount };
   }
 
   const toAdd = incoming.map((item) => {
@@ -226,7 +221,7 @@ function deduplicateById<T extends { id: string }>(
     }
     return item;
   });
-  return { toAdd, duplicates: incoming.filter((item) => existingIds.has(item.id)).length };
+  return { toAdd, duplicates: duplicateCount };
 }
 
 export async function importProfile(
@@ -344,6 +339,7 @@ export async function importProfile(
     confusionItemsInvalid: confusionInvalid,
     migratedFields: uniqueMigratedFields,
     rollbackAvailable: true,
+    duplicateMode,
   };
 }
 
@@ -352,10 +348,17 @@ export function formatImportSummary(summary: ImportSummary): string {
   lines.push(`导入完成：文件包含 ${summary.totalRecordsInFile} 条记录`);
   lines.push("");
 
+  const dupLabels: Record<ImportMode, string> = {
+    skip: "重复跳过",
+    overwrite: "覆盖",
+    merge: "合并（新ID）",
+  };
+  const dupLabel = dupLabels[summary.duplicateMode];
+
   if (summary.blindTastingImported > 0 || summary.blindTastingDuplicates > 0 || summary.blindTastingInvalid > 0) {
     const parts: string[] = [];
     if (summary.blindTastingImported > 0) parts.push(`${summary.blindTastingImported} 条导入`);
-    if (summary.blindTastingDuplicates > 0) parts.push(`${summary.blindTastingDuplicates} 条重复跳过`);
+    if (summary.blindTastingDuplicates > 0) parts.push(`${summary.blindTastingDuplicates} 条${dupLabel}`);
     if (summary.blindTastingInvalid > 0) parts.push(`${summary.blindTastingInvalid} 条无效`);
     lines.push(`盲品记录：${parts.join("，")}`);
   }
@@ -363,7 +366,7 @@ export function formatImportSummary(summary: ImportSummary): string {
   if (summary.quizResultsImported > 0 || summary.quizResultsDuplicates > 0 || summary.quizResultsInvalid > 0) {
     const parts: string[] = [];
     if (summary.quizResultsImported > 0) parts.push(`${summary.quizResultsImported} 条导入`);
-    if (summary.quizResultsDuplicates > 0) parts.push(`${summary.quizResultsDuplicates} 条重复跳过`);
+    if (summary.quizResultsDuplicates > 0) parts.push(`${summary.quizResultsDuplicates} 条${dupLabel}`);
     if (summary.quizResultsInvalid > 0) parts.push(`${summary.quizResultsInvalid} 条无效`);
     lines.push(`测验结果：${parts.join("，")}`);
   }
@@ -371,7 +374,7 @@ export function formatImportSummary(summary: ImportSummary): string {
   if (summary.reviewPlansImported > 0 || summary.reviewPlansDuplicates > 0 || summary.reviewPlansInvalid > 0) {
     const parts: string[] = [];
     if (summary.reviewPlansImported > 0) parts.push(`${summary.reviewPlansImported} 条导入`);
-    if (summary.reviewPlansDuplicates > 0) parts.push(`${summary.reviewPlansDuplicates} 条重复跳过`);
+    if (summary.reviewPlansDuplicates > 0) parts.push(`${summary.reviewPlansDuplicates} 条${dupLabel}`);
     if (summary.reviewPlansInvalid > 0) parts.push(`${summary.reviewPlansInvalid} 条无效`);
     lines.push(`复习计划：${parts.join("，")}`);
   }
@@ -379,7 +382,7 @@ export function formatImportSummary(summary: ImportSummary): string {
   if (summary.confusionItemsImported > 0 || summary.confusionItemsDuplicates > 0 || summary.confusionItemsInvalid > 0) {
     const parts: string[] = [];
     if (summary.confusionItemsImported > 0) parts.push(`${summary.confusionItemsImported} 条导入`);
-    if (summary.confusionItemsDuplicates > 0) parts.push(`${summary.confusionItemsDuplicates} 条重复跳过`);
+    if (summary.confusionItemsDuplicates > 0) parts.push(`${summary.confusionItemsDuplicates} 条${dupLabel}`);
     if (summary.confusionItemsInvalid > 0) parts.push(`${summary.confusionItemsInvalid} 条无效`);
     lines.push(`混淆项：${parts.join("，")}`);
   }

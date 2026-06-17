@@ -11,6 +11,16 @@ import {
 } from "../data/learningProfileDB";
 import { exportProfile, importProfile, formatImportSummary } from "../data/learningProfileIO";
 import { BlindTastingRecord, QuizResultRecord, ReviewPlanRecord, ConfusionItem, RollbackSnapshot } from "../data/learningProfileTypes";
+import {
+  migrateExistingDataToProfile,
+  hasMigratedProfile,
+  MigrationResult,
+} from "../data/learningProfileSync";
+import { WineRecord } from "../data/wineRecordTypes";
+
+interface LearningProfilePanelProps {
+  records?: WineRecord[];
+}
 
 interface ProfileStats {
   blindCount: number;
@@ -36,7 +46,7 @@ function formatTimeRelative(ts: number): string {
   return `${days}天前`;
 }
 
-export default function LearningProfilePanel() {
+export default function LearningProfilePanel({ records = [] }: LearningProfilePanelProps) {
   const [stats, setStats] = useState<ProfileStats>({
     blindCount: 0,
     quizCount: 0,
@@ -48,10 +58,13 @@ export default function LearningProfilePanel() {
   const [importMode, setImportMode] = useState<ImportMode>("merge");
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [migrating, setMigrating] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null);
   const [showRollbackList, setShowRollbackList] = useState(false);
+  const [isMigrated, setIsMigrated] = useState(false);
   const [recentBlind, setRecentBlind] = useState<BlindTastingRecord[]>([]);
   const [recentQuiz, setRecentQuiz] = useState<QuizResultRecord[]>([]);
   const [recentReview, setRecentReview] = useState<ReviewPlanRecord[]>([]);
@@ -85,7 +98,36 @@ export default function LearningProfilePanel() {
 
   useEffect(() => {
     refreshData();
+    setIsMigrated(hasMigratedProfile());
   }, [refreshData]);
+
+  useEffect(() => {
+    const shouldAutoMigrate = !hasMigratedProfile() && stats.totalRecords === 0;
+    if (shouldAutoMigrate && records.length > 0) {
+      handleMigrate(true);
+    }
+  }, [records]);
+
+  const handleMigrate = useCallback(
+    async (silent: boolean = false) => {
+      if (migrating) return;
+      setMigrating(true);
+      setMigrationResult(null);
+      try {
+        const result = await migrateExistingDataToProfile(records, true);
+        if (!silent) {
+          setMigrationResult(result);
+        }
+        setIsMigrated(true);
+        await refreshData();
+      } catch (err) {
+        console.error("Migration failed:", err);
+      } finally {
+        setMigrating(false);
+      }
+    },
+    [records, migrating, refreshData]
+  );
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -178,6 +220,14 @@ export default function LearningProfilePanel() {
         <div className="profile-actions">
           <button
             className="secondary-action"
+            onClick={() => handleMigrate(false)}
+            disabled={migrating}
+            title="从本地历史数据同步到学习档案"
+          >
+            {migrating ? "同步中..." : "同步数据"}
+          </button>
+          <button
+            className="secondary-action"
             onClick={handleExport}
             disabled={exporting || stats.totalRecords === 0}
           >
@@ -244,6 +294,22 @@ export default function LearningProfilePanel() {
         <div className="profile-import-error">
           <span className="profile-import-error-icon">❌</span>
           <span>{importError}</span>
+        </div>
+      )}
+
+      {migrationResult && !migrationResult.fromExisting && (
+        <div className="profile-migration-summary">
+          <div className="import-summary-header">
+            <span className="import-summary-icon">🔄</span>
+            <h4>数据同步完成</h4>
+          </div>
+          <p className="migration-text">
+            已从本地历史同步：
+            {migrationResult.quizResults > 0 && ` ${migrationResult.quizResults} 场测验`}
+            {migrationResult.blindTastingRecords > 0 && ` · ${migrationResult.blindTastingRecords} 条盲品记录`}
+            {migrationResult.confusionItems > 0 && ` · ${migrationResult.confusionItems} 个混淆项`}
+            {migrationResult.quizResults === 0 && migrationResult.blindTastingRecords === 0 && " 暂无历史数据可同步"}
+          </p>
         </div>
       )}
 
@@ -408,7 +474,7 @@ export default function LearningProfilePanel() {
           <div className="empty-state">
             <span className="empty-icon">📂</span>
             <p>学习档案为空</p>
-            <p className="empty-hint">进行盲品练习或导入 JSON 文件来建立你的学习档案</p>
+            <p className="empty-hint">点击「同步数据」导入历史记录，或进行盲品练习来建立你的学习档案</p>
           </div>
         )}
       </div>
