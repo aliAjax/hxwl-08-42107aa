@@ -10,6 +10,7 @@ import RegionMapDashboard from "./components/RegionMapDashboard";
 import RegionDetailView from "./components/RegionDetailView";
 import ExamPanel from "./components/ExamPanel";
 import AdaptiveDashboard from "./components/AdaptiveDashboard";
+import LearningProfilePanel from "./components/LearningProfilePanel";
 import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
@@ -346,6 +347,8 @@ function App() {
       <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} />
 
       <WineComparison onAromaClick={handleAromaClick} />
+
+      <LearningProfilePanel />
 
       {formState.open && (
         <WineRecordForm
