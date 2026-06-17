@@ -2213,3 +2213,507 @@ input {
     width: 100%;
   }
 }
+
+.region-dashboard {
+  margin-bottom: 20px;
+}
+
+.mini-stat {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.mini-stat span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.mini-stat strong {
+  font-size: 18px;
+  color: var(--primary);
+}
+
+.region-map-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "burgundy bordeaux tuscany piedmont"
+    "rioja napa mendoza barossa";
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.region-tile {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: #fbfdff;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.region-tile::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--region-color);
+  opacity: 0.8;
+}
+
+.region-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  border-color: var(--region-color);
+}
+
+.region-tile.region-empty {
+  opacity: 0.55;
+  background: #f8fafc;
+}
+
+.region-tile.region-empty:hover {
+  transform: translateY(-1px);
+  opacity: 0.7;
+}
+
+.region-tile.region-low {
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.region-tile.region-medium {
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+}
+
+.region-tile.region-high {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.region-tile-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.region-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--region-color);
+  flex-shrink: 0;
+}
+
+.region-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #172033;
+}
+
+.region-country {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.region-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+}
+
+.region-stat-item {
+  display: grid;
+  gap: 4px;
+}
+
+.region-stat-label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.region-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #172033;
+}
+
+.region-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.region-practice {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.region-arrow {
+  font-size: 16px;
+  color: var(--region-color);
+  font-weight: 700;
+  transition: transform 0.2s;
+}
+
+.region-tile:hover .region-arrow {
+  transform: translateX(4px);
+}
+
+.region-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-top: 4px;
+  flex-wrap: wrap;
+}
+
+.legend-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.legend-items {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #526070;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.legend-dot.legend-ok {
+  background: #dcfce7;
+  border: 2px solid var(--accent);
+}
+
+.legend-dot.legend-medium {
+  background: #fef3c7;
+  border: 2px solid var(--warn);
+}
+
+.legend-dot.legend-low {
+  background: #fee2e2;
+  border: 2px solid #e11d48;
+}
+
+.legend-dot.legend-empty {
+  background: #f1f5f9;
+  border: 2px solid #cbd5e1;
+}
+
+.region-detail {
+  margin-bottom: 20px;
+}
+
+.region-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #526070;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, #ffffff);
+}
+
+.region-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.region-detail-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--region-color);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--region-color) 18%, transparent);
+  flex-shrink: 0;
+}
+
+.region-detail-title h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.region-detail-title p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.region-detail-stats {
+  display: flex;
+  gap: 20px;
+}
+
+.region-detail-progress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.progress-bar {
+  height: 10px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+.progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #526070;
+  white-space: nowrap;
+}
+
+.section-subheading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-subheading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.weak-grapes-section {
+  margin-bottom: 28px;
+}
+
+.weak-grapes-count {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.weak-grapes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.weak-grape-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  background: #fbfdff;
+  display: grid;
+  gap: 10px;
+}
+
+.weak-grape-card.weak-high {
+  border-left: 4px solid #e11d48;
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.weak-grape-card.weak-medium {
+  border-left: 4px solid var(--warn);
+  background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+}
+
+.weak-grape-card.weak-low {
+  border-left: 4px solid var(--accent);
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.weak-grape-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.weak-grape-header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #172033;
+}
+
+.weak-rate-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.weak-rate-badge.rate-high {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.weak-rate-badge.rate-medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.weak-rate-badge.rate-low {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.weak-grape-stats {
+  display: flex;
+  gap: 14px;
+}
+
+.weak-stat {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.weak-stat strong {
+  color: #172033;
+  font-weight: 700;
+}
+
+.weak-progress-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.weak-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.weak-progress-fill.rate-high {
+  background: linear-gradient(90deg, #fca5a5, #e11d48);
+}
+
+.weak-progress-fill.rate-medium {
+  background: linear-gradient(90deg, #fcd34d, #d97706);
+}
+
+.weak-progress-fill.rate-low {
+  background: linear-gradient(90deg, #86efac, #047857);
+}
+
+.weak-suggestion {
+  font-size: 12px;
+  font-weight: 600;
+  color: #526070;
+  padding-top: 2px;
+}
+
+.region-records-section {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+
+.record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.record-meta-item {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 500;
+}
+
+@media (max-width: 860px) {
+  .region-map-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-areas:
+      "burgundy bordeaux"
+      "tuscany piedmont"
+      "rioja napa"
+      "mendoza barossa";
+  }
+
+  .region-detail-header {
+    flex-direction: column;
+  }
+
+  .region-detail-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .region-detail-progress {
+    grid-template-columns: 1fr;
+  }
+
+  .weak-grapes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .region-legend {
+    gap: 12px;
+  }
+
+  .legend-items {
+    gap: 12px;
+  }
+}
+

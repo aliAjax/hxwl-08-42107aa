@@ -6,6 +6,8 @@ import AromaLexicon from "./components/AromaLexicon";
 import ReviewPlan, { ReviewRecord } from "./components/ReviewPlan";
 import WineComparison from "./components/WineComparison";
 import WineRecordForm from "./components/WineRecordForm";
+import RegionMapDashboard from "./components/RegionMapDashboard";
+import RegionDetailView from "./components/RegionDetailView";
 import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
@@ -52,6 +54,7 @@ function App() {
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [selectedRegionKey, setSelectedRegionKey] = useState<string | null>(null);
 
   const showToast = useCallback((message: string, tone: "warn" | "info" = "warn") => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -141,6 +144,16 @@ function App() {
     return () => document.removeEventListener("click", close);
   }, [openMenuId]);
 
+  const handleSelectRegion = useCallback((regionKey: string) => {
+    setSelectedRegionKey(regionKey);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const handleBackToMap = useCallback(() => {
+    setSelectedRegionKey(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const reviewRecords: ReviewRecord[] = records.map((record) => ({
     name: record.name,
     grape: record.grape,
@@ -216,6 +229,20 @@ function App() {
       <BlindTastingCard onAromaClick={handleAromaClick} />
 
       <BlindQuiz onAromaClick={handleAromaClick} />
+
+      {selectedRegionKey ? (
+        <RegionDetailView
+          records={records}
+          regionKey={selectedRegionKey}
+          onBack={handleBackToMap}
+          onAromaClick={handleAromaClick}
+        />
+      ) : (
+        <RegionMapDashboard
+          records={records}
+          onSelectRegion={handleSelectRegion}
+        />
+      )}
 
       <AromaLexicon
         ref={lexiconRef}
