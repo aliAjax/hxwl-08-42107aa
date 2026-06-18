@@ -17,7 +17,7 @@ import {
 import { syncQuizSessionToProfile } from "../data/learningProfileSync";
 import { checkRegionAnswer, checkGrapeAnswer, MatchResult } from "../data/answerChecker";
 import { aromaKeywords, AromaCategory, categoryConfig } from "../data/aromaData";
-import { REGION_GROUPS, matchRegionKey } from "../data/regionStats";
+import { REGION_GROUPS } from "../data/regionStats";
 
 type ExamPhase = "setup" | "quiz" | "result";
 type ExamMode = "manual" | "smart";
@@ -1254,7 +1254,7 @@ function QuestionSourceStats({ preview }: { preview: SmartPickResult }) {
           <span className="source-stats-card-label">产区分布</span>
           <div className="source-stats-list">
             {preview.regionBreakdown.slice(0, 5).map(({ region, count }) => {
-              const group = REGION_GROUPS.find((g) => g.key === matchRegionKey(region)) ||
+              const group = REGION_GROUPS.find((g) => g.key === region) ||
                 REGION_GROUPS.find((g) => region.includes(g.name));
               return (
                 <div key={region} className="source-stat-row">

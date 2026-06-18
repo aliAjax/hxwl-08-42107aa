@@ -1242,7 +1242,9 @@ export function smartPickRecords(
   }
 
   const effectiveCount = Math.min(count, allRecords.length);
-  const strategies = config.strategies.length > 0 ? config.strategies : ["regionCoverage"];
+  const rawStrategies = config.strategies.length > 0 ? config.strategies : ["regionCoverage"];
+  const STRATEGY_PRIORITY: SmartPickStrategy[] = ["weakGrape", "recentUnpracticed", "regionCoverage", "aromaCategory"];
+  const strategies = [...rawStrategies].sort((a, b) => STRATEGY_PRIORITY.indexOf(a) - STRATEGY_PRIORITY.indexOf(b));
   const recordsById = new Map(allRecords.map((r) => [r.id, r]));
   const selectedIds = new Set<string>();
   const statsMap = new Map<SmartPickStrategy, number>();
