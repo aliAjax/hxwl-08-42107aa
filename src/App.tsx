@@ -1,5 +1,5 @@
 import "./styles.css";
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
 import BlindQuiz from "./components/BlindQuiz";
 import AromaLexicon from "./components/AromaLexicon";
@@ -16,9 +16,12 @@ import LearningPathPanel from "./components/LearningPathPanel";
 import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
-import { WineRecordInput, WineRecord } from "./data/wineRecordTypes";
-import { matchRegionKey } from "./data/regionStats";
-import { triggerPathRefreshAfterQuiz, triggerPathRefreshAfterImport, triggerPathRefreshAfterRecordsChange } from "./data/learningPathStore";
+import { WineRecord } from "./data/wineRecordTypes";
+import { triggerPathRefreshAfterQuiz, triggerPathRefreshAfterImport } from "./data/learningPathStore";
+import { useToast } from "./hooks/useToast";
+import { useRecordFilter } from "./hooks/useRecordFilter";
+import { useRecordForm } from "./hooks/useRecordForm";
+import { useRegionExam } from "./hooks/useRegionExam";
 
 const project = {
   id: "hxwl-08",
@@ -47,7 +50,6 @@ function MetricCard({ label, value, index }: { label: string; value: string; ind
 
 function App() {
   const [selectedAroma, setSelectedAroma] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; tone: "warn" | "info" } | null>(null);
   const [dashboardRefreshSignal, setDashboardRefreshSignal] = useState(0);
   const [profileRefreshSignal, setProfileRefreshSignal] = useState(0);
   const [reviewPlanRefreshSignal, setReviewPlanRefreshSignal] = useState(0);
@@ -57,7 +59,8 @@ function App() {
   const recordsRef = useRef<HTMLElement>(null);
   const learningPathRef = useRef<HTMLElement>(null);
   const [highlightedRecordId, setHighlightedRecordId] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { toast, showToast } = useToast();
 
   const triggerDashboardRefresh = useCallback(() => {
     setDashboardRefreshSignal((s) => s + 1);
@@ -73,12 +76,6 @@ function App() {
 
   const triggerLearningPathRefresh = useCallback(() => {
     setLearningPathRefreshSignal((s) => s + 1);
-  }, []);
-
-  const showToast = useCallback((message: string, tone: "warn" | "info" = "warn") => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ message, tone });
-    toastTimer.current = setTimeout(() => setToast(null), 2600);
   }, []);
 
   const handleReviewPlanGenerated = useCallback(() => {
@@ -112,32 +109,51 @@ function App() {
 
   const { records, loading, error, addRecord, updateRecord, deleteRecord } = useWineRecords();
 
-  const [formState, setFormState] = useState<{
-    open: boolean;
-    mode: "add" | "edit";
-    record?: WineRecord;
-  }>({ open: false, mode: "add" });
+  const {
+    searchQuery,
+    filterCountry,
+    filterRegion,
+    filterGrape,
+    filterAroma,
+    setSearchQuery,
+    setFilterCountry,
+    setFilterRegion,
+    setFilterGrape,
+    setFilterAroma,
+    filterOptions,
+    hasActiveFilters,
+    filteredRecords,
+    clearAllFilters,
+  } = useRecordFilter(records);
 
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const {
+    formState,
+    deleteConfirm,
+    openMenuId,
+    handleOpenAddForm,
+    handleOpenEditForm,
+    handleFormCancel,
+    handleFormSubmit,
+    handleDeleteClick,
+    handleDeleteConfirm,
+    handleDeleteCancel,
+    handleToggleMenu,
+  } = useRecordForm({
+    addRecord,
+    updateRecord,
+    deleteRecord,
+    showToast,
+    triggerLearningPathRefresh,
+  });
+
   const [selectedRegionKey, setSelectedRegionKey] = useState<string | null>(null);
-  const [examPreset, setExamPreset] = useState<{
-    recordIds: string[];
-    examName: string;
-  } | null>(null);
-  const examPanelRef = useRef<HTMLElement>(null);
 
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [filterCountry, setFilterCountry] = useState<string>("");
-  const [filterRegion, setFilterRegion] = useState<string>("");
-  const [filterGrape, setFilterGrape] = useState<string>("");
-  const [filterAroma, setFilterAroma] = useState<string>("");
-
-  useEffect(() => {
-    return () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    };
-  }, []);
+  const {
+    examPreset,
+    examPanelRef,
+    handleStartExamForRegion,
+    handleClearExamPreset,
+  } = useRegionExam({ records, showToast });
 
   const handleAromaClick = useCallback((aroma: string) => {
     const found = aromaKeywords.some((k) => k.name === aroma);
@@ -155,11 +171,7 @@ function App() {
 
   const handleViewRecord = useCallback((recordId: string, recordName: string) => {
     setHighlightedRecordId(recordId);
-    setSearchQuery("");
-    setFilterCountry("");
-    setFilterRegion("");
-    setFilterGrape("");
-    setFilterAroma("");
+    clearAllFilters();
     recordsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setTimeout(() => {
       const el = document.getElementById(`record-${recordId}`);
@@ -171,73 +183,7 @@ function App() {
     setTimeout(() => {
       setHighlightedRecordId(null);
     }, 4000);
-  }, [showToast]);
-
-  const handleOpenAddForm = useCallback(() => {
-    setFormState({ open: true, mode: "add" });
-  }, []);
-
-  const handleOpenEditForm = useCallback((record: WineRecord) => {
-    setFormState({ open: true, mode: "edit", record });
-    setOpenMenuId(null);
-  }, []);
-
-  const handleFormCancel = useCallback(() => {
-    setFormState({ open: false, mode: "add" });
-  }, []);
-
-  const handleFormSubmit = useCallback(
-    async (data: WineRecordInput) => {
-      try {
-        if (formState.mode === "edit" && formState.record) {
-          await updateRecord(formState.record.id, data);
-          showToast("记录已更新", "info");
-        } else {
-          await addRecord(data);
-          showToast("记录已添加", "info");
-        }
-        setFormState({ open: false, mode: "add" });
-        await triggerPathRefreshAfterRecordsChange();
-        setLearningPathRefreshSignal((s) => s + 1);
-      } catch {
-        showToast(formState.mode === "edit" ? "更新失败" : "添加失败", "warn");
-      }
-    },
-    [formState.mode, formState.record, addRecord, updateRecord, showToast, records]
-  );
-
-  const handleDeleteClick = useCallback((id: string) => {
-    setDeleteConfirm(id);
-    setOpenMenuId(null);
-  }, []);
-
-  const handleDeleteConfirm = useCallback(async () => {
-    if (!deleteConfirm) return;
-    try {
-      await deleteRecord(deleteConfirm);
-      showToast("记录已删除", "info");
-      await triggerPathRefreshAfterRecordsChange();
-      setLearningPathRefreshSignal((s) => s + 1);
-    } catch {
-      showToast("删除失败", "warn");
-    }
-    setDeleteConfirm(null);
-  }, [deleteConfirm, deleteRecord, showToast, records]);
-
-  const handleDeleteCancel = useCallback(() => {
-    setDeleteConfirm(null);
-  }, []);
-
-  const handleToggleMenu = useCallback((id: string) => {
-    setOpenMenuId((prev: string | null) => (prev === id ? null : id));
-  }, []);
-
-  useEffect(() => {
-    if (!openMenuId) return;
-    const close = () => setOpenMenuId(null);
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [openMenuId]);
+  }, [showToast, clearAllFilters]);
 
   const handleSelectRegion = useCallback((regionKey: string) => {
     setSelectedRegionKey(regionKey);
@@ -247,110 +193,6 @@ function App() {
   const handleBackToMap = useCallback(() => {
     setSelectedRegionKey(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
-  const handleStartExamForRegion = useCallback(
-    (regionKey: string, regionName: string) => {
-      const regionRecords = records.filter(
-        (r) => matchRegionKey(r.region) === regionKey
-      );
-
-      if (regionRecords.length === 0) {
-        showToast("该产区暂无记录，无法开始练习", "warn");
-        return;
-      }
-
-      setExamPreset({
-        recordIds: regionRecords.map((r) => r.id),
-        examName: `产区练习 - ${regionName}`,
-      });
-
-      setTimeout(() => {
-        examPanelRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 100);
-
-      showToast(`已加载${regionRecords.length}条${regionName}记录到测验面板`, "info");
-    },
-    [records, showToast]
-  );
-
-  const handleClearExamPreset = useCallback(() => {
-    setExamPreset(null);
-  }, []);
-
-  const filterOptions = useMemo(() => {
-    const countries = new Set<string>();
-    const regions = new Set<string>();
-    const grapes = new Set<string>();
-    const aromas = new Set<string>();
-    records.forEach((r) => {
-      if (r.country) countries.add(r.country);
-      if (r.region) regions.add(r.region);
-      if (r.grape) grapes.add(r.grape);
-      r.aromas.forEach((a) => aromas.add(a));
-    });
-    return {
-      countries: Array.from(countries).sort(),
-      regions: Array.from(regions).sort(),
-      grapes: Array.from(grapes).sort(),
-      aromas: Array.from(aromas).sort(),
-    };
-  }, [records]);
-
-  const hasActiveFilters = useMemo(() => {
-    return (
-      searchQuery.trim() !== "" ||
-      filterCountry !== "" ||
-      filterRegion !== "" ||
-      filterGrape !== "" ||
-      filterAroma !== ""
-    );
-  }, [searchQuery, filterCountry, filterRegion, filterGrape, filterAroma]);
-
-  const filteredRecords = useMemo(() => {
-    let result = records;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      result = result.filter((r) =>
-        [
-          r.name,
-          r.region,
-          r.country,
-          r.grape,
-          r.year ?? "",
-          r.characteristic,
-          r.notes ?? "",
-          ...r.aromas,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(q)
-      );
-    }
-    if (filterCountry) {
-      result = result.filter((r) => r.country === filterCountry);
-    }
-    if (filterRegion) {
-      result = result.filter((r) => r.region === filterRegion);
-    }
-    if (filterGrape) {
-      result = result.filter((r) => r.grape === filterGrape);
-    }
-    if (filterAroma) {
-      result = result.filter((r) => r.aromas.includes(filterAroma));
-    }
-    return result;
-  }, [records, searchQuery, filterCountry, filterRegion, filterGrape, filterAroma]);
-
-  const clearAllFilters = useCallback(() => {
-    setSearchQuery("");
-    setFilterCountry("");
-    setFilterRegion("");
-    setFilterGrape("");
-    setFilterAroma("");
   }, []);
 
   const reviewRecords: ReviewRecord[] = records.map((record) => ({
