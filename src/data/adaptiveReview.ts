@@ -1153,3 +1153,350 @@ export const scopeHints: Record<GenerationScope, string> = {
   unpracticed: "从未进行过练习的新题，建议尽快覆盖",
   weakRegions: "属于错误率最高产区的酒款，加强产区识别",
 };
+
+export type SmartPickStrategy =
+  | "regionCoverage"
+  | "weakGrape"
+  | "recentUnpracticed"
+  | "aromaCategory";
+
+export interface SmartPickConfig {
+  strategies: SmartPickStrategy[];
+  regionCoverageRatio?: number;
+  weakGrapeRatio?: number;
+  recentUnpracticedRatio?: number;
+  aromaCategoryRatio?: number;
+  unpracticedDaysThreshold?: number;
+  selectedAromaCategories?: string[];
+}
+
+export interface QuestionSourceStat {
+  strategy: SmartPickStrategy;
+  label: string;
+  count: number;
+  description: string;
+}
+
+export interface SmartPickResult {
+  records: WineRecord[];
+  stats: QuestionSourceStat[];
+  regionBreakdown: { region: string; count: number }[];
+  grapeBreakdown: { grape: string; count: number }[];
+  aromaCategoryBreakdown: { category: string; count: number }[];
+}
+
+export const strategyLabels: Record<SmartPickStrategy, string> = {
+  regionCoverage: "产区覆盖",
+  weakGrape: "薄弱品种",
+  recentUnpracticed: "最近未练习",
+  aromaCategory: "香气类别",
+};
+
+export const strategyDescriptions: Record<SmartPickStrategy, string> = {
+  regionCoverage: "确保题目覆盖多个不同产区，避免集中在单一产区",
+  weakGrape: "优先选择历史错误率较高的葡萄品种相关题目",
+  recentUnpracticed: "优先选择超过一定天数未练习的题目",
+  aromaCategory: "按指定香气类别选题，覆盖不同香气特征",
+};
+
+function getAromaCategory(aromaName: string, aromaKeywords: { name: string; category: string }[]): string {
+  const found = aromaKeywords.find((k) => k.name === aromaName);
+  return found?.category || "其他";
+}
+
+function categorizeRecordsByAroma(
+  records: WineRecord[],
+  aromaKeywordsData: { name: string; category: string }[]
+): Map<string, WineRecord[]> {
+  const map = new Map<string, WineRecord[]>();
+  for (const record of records) {
+    const categories = new Set<string>();
+    for (const aroma of record.aromas) {
+      const cat = getAromaCategory(aroma, aromaKeywordsData);
+      if (cat !== "其他") {
+        categories.add(cat);
+      }
+    }
+    for (const cat of categories) {
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(record);
+    }
+  }
+  return map;
+}
+
+export function smartPickRecords(
+  allRecords: WineRecord[],
+  count: number,
+  config: SmartPickConfig,
+  aromaKeywordsData: { name: string; category: string }[]
+): SmartPickResult {
+  if (allRecords.length === 0 || count <= 0) {
+    return {
+      records: [],
+      stats: [],
+      regionBreakdown: [],
+      grapeBreakdown: [],
+      aromaCategoryBreakdown: [],
+    };
+  }
+
+  const effectiveCount = Math.min(count, allRecords.length);
+  const strategies = config.strategies.length > 0 ? config.strategies : ["regionCoverage"];
+  const recordsById = new Map(allRecords.map((r) => [r.id, r]));
+  const selectedIds = new Set<string>();
+  const statsMap = new Map<SmartPickStrategy, number>();
+  strategies.forEach((s) => statsMap.set(s, 0));
+
+  const strategyRatios: Record<SmartPickStrategy, number> = {
+    regionCoverage: config.regionCoverageRatio ?? 0.3,
+    weakGrape: config.weakGrapeRatio ?? 0.3,
+    recentUnpracticed: config.recentUnpracticedRatio ?? 0.25,
+    aromaCategory: config.aromaCategoryRatio ?? 0.15,
+  };
+
+  const totalRatio = strategies.reduce((s, st) => s + strategyRatios[st], 0);
+  const normalizedRatios: Record<string, number> = {};
+  for (const st of strategies) {
+    normalizedRatios[st] = totalRatio > 0 ? strategyRatios[st] / totalRatio : 1 / strategies.length;
+  }
+
+  const statsMapAll = computeWineStats(allRecords);
+  const prioritized = prioritizeWines(allRecords);
+  const weightMap = new Map<string, PrioritizedWine>();
+  for (const pw of prioritized) {
+    if (pw.stats.source === "wineRecord") {
+      weightMap.set(pw.stats.id, pw);
+    }
+  }
+
+  const grapeErrorMap = new Map<string, { attempts: number; errors: number; errorRate: number }>();
+  for (const [, stats] of statsMapAll) {
+    if (stats.source !== "wineRecord") continue;
+    const key = stats.grape;
+    if (!grapeErrorMap.has(key)) {
+      grapeErrorMap.set(key, { attempts: 0, errors: 0, errorRate: 0 });
+    }
+    const entry = grapeErrorMap.get(key)!;
+    entry.attempts += stats.totalAttempts;
+    entry.errors += stats.regionErrorCount + stats.grapeErrorCount + stats.bothErrorCount;
+  }
+  for (const [, entry] of grapeErrorMap) {
+    entry.errorRate = entry.attempts > 0 ? entry.errors / entry.attempts : 0;
+  }
+
+  function getRemaining(): WineRecord[] {
+    return allRecords.filter((r) => !selectedIds.has(r.id));
+  }
+
+  function pickByWeight(pool: WineRecord[], n: number): WineRecord[] {
+    if (pool.length === 0 || n <= 0) return [];
+    const effective = Math.min(n, pool.length);
+    const items = pool.map((record) => ({
+      record,
+      weight: weightMap.get(record.id)?.finalWeight ?? 1.0,
+    }));
+    const result: WineRecord[] = [];
+    const remaining = [...items];
+    for (let i = 0; i < effective; i++) {
+      const totalWeight = remaining.reduce((s, item) => s + item.weight, 0);
+      let rand = Math.random() * totalWeight;
+      let chosenIndex = 0;
+      for (let j = 0; j < remaining.length; j++) {
+        rand -= remaining[j].weight;
+        if (rand <= 0) {
+          chosenIndex = j;
+          break;
+        }
+      }
+      result.push(remaining[chosenIndex].record);
+      remaining.splice(chosenIndex, 1);
+    }
+    return result;
+  }
+
+  function pickFromStrategy(strategy: SmartPickStrategy, targetCount: number): WineRecord[] {
+    if (targetCount <= 0) return [];
+    const pool = getRemaining();
+    if (pool.length === 0) return [];
+
+    if (strategy === "regionCoverage") {
+      const regionMap = new Map<string, WineRecord[]>();
+      for (const r of pool) {
+        const regionKey = matchRegionKey(r.region) || r.region;
+        if (!regionMap.has(regionKey)) regionMap.set(regionKey, []);
+        regionMap.get(regionKey)!.push(r);
+      }
+      const regions = Array.from(regionMap.keys());
+      const picked: WineRecord[] = [];
+      let round = 0;
+      while (picked.length < targetCount && regions.length > 0) {
+        for (const region of regions) {
+          if (picked.length >= targetCount) break;
+          const regionRecords = regionMap.get(region) || [];
+          const available = regionRecords.filter((r) => !picked.includes(r) && !selectedIds.has(r.id));
+          if (available.length > round) {
+            picked.push(available[round]);
+          }
+        }
+        round++;
+        if (round > 10) break;
+      }
+      if (picked.length < targetCount) {
+        const rest = pool.filter((r) => !picked.includes(r));
+        picked.push(...pickByWeight(rest, targetCount - picked.length));
+      }
+      return picked.slice(0, targetCount);
+    }
+
+    if (strategy === "weakGrape") {
+      const sortedByWeakness = [...pool].sort((a, b) => {
+        const aStat = grapeErrorMap.get(a.grape);
+        const bStat = grapeErrorMap.get(b.grape);
+        const aRate = aStat?.errorRate ?? 0;
+        const bRate = bStat?.errorRate ?? 0;
+        if (bRate !== aRate) return bRate - aRate;
+        const aAttempts = aStat?.attempts ?? 0;
+        const bAttempts = bStat?.attempts ?? 0;
+        return bAttempts - aAttempts;
+      });
+      return pickByWeight(sortedByWeakness, targetCount);
+    }
+
+    if (strategy === "recentUnpracticed") {
+      const daysThreshold = config.unpracticedDaysThreshold ?? 7;
+      const now = Date.now();
+      const sortedByUnpracticed = [...pool].sort((a, b) => {
+        const aStat = statsMapAll.get(`wineRecord:${a.id}`);
+        const bStat = statsMapAll.get(`wineRecord:${b.id}`);
+        const aLast = aStat?.lastAttemptTime ?? 0;
+        const bLast = bStat?.lastAttemptTime ?? 0;
+        const aDays = aLast === 0 ? 9999 : (now - aLast) / 86400000;
+        const bDays = bLast === 0 ? 9999 : (now - bLast) / 86400000;
+        if (aDays >= daysThreshold && bDays < daysThreshold) return -1;
+        if (bDays >= daysThreshold && aDays < daysThreshold) return 1;
+        return bDays - aDays;
+      });
+      return pickByWeight(sortedByUnpracticed, targetCount);
+    }
+
+    if (strategy === "aromaCategory") {
+      const selectedCats = config.selectedAromaCategories && config.selectedAromaCategories.length > 0
+        ? config.selectedAromaCategories
+        : ["水果", "花香", "草本", "橡木", "陈年风味"];
+      const categorized = categorizeRecordsByAroma(pool, aromaKeywordsData);
+      const picked: WineRecord[] = [];
+      const availableCategories = selectedCats.filter((c) => categorized.has(c) && categorized.get(c)!.length > 0);
+
+      if (availableCategories.length === 0) {
+        return pickByWeight(pool, targetCount);
+      }
+
+      let catIndex = 0;
+      while (picked.length < targetCount) {
+        const cat = availableCategories[catIndex % availableCategories.length];
+        const catRecords = categorized.get(cat)?.filter((r) => !picked.includes(r) && !selectedIds.has(r.id)) || [];
+        if (catRecords.length > 0) {
+          const weighted = pickByWeight(catRecords, 1);
+          if (weighted.length > 0) {
+            picked.push(weighted[0]);
+          }
+        }
+        catIndex++;
+        if (catIndex > availableCategories.length * 50) break;
+      }
+
+      if (picked.length < targetCount) {
+        const rest = pool.filter((r) => !picked.includes(r));
+        picked.push(...pickByWeight(rest, targetCount - picked.length));
+      }
+      return picked.slice(0, targetCount);
+    }
+
+    return pickByWeight(pool, targetCount);
+  }
+
+  const picksPerStrategy: Record<string, number> = {};
+  let remainingToPick = effectiveCount;
+  for (let i = 0; i < strategies.length; i++) {
+    const st = strategies[i];
+    if (i === strategies.length - 1) {
+      picksPerStrategy[st] = remainingToPick;
+    } else {
+      const n = Math.min(Math.round(effectiveCount * normalizedRatios[st]), remainingToPick);
+      picksPerStrategy[st] = n;
+      remainingToPick -= n;
+    }
+  }
+
+  const finalRecords: WineRecord[] = [];
+  for (const st of strategies) {
+    const n = picksPerStrategy[st] ?? 0;
+    if (n <= 0) continue;
+    const picked = pickFromStrategy(st, n);
+    for (const r of picked) {
+      if (!selectedIds.has(r.id)) {
+        selectedIds.add(r.id);
+        finalRecords.push(r);
+        statsMap.set(st, (statsMap.get(st) ?? 0) + 1);
+      }
+    }
+  }
+
+  if (finalRecords.length < effectiveCount) {
+    const remaining = allRecords.filter((r) => !selectedIds.has(r.id));
+    const fill = pickByWeight(remaining, effectiveCount - finalRecords.length);
+    for (const r of fill) {
+      selectedIds.add(r.id);
+      finalRecords.push(r);
+    }
+  }
+
+  const stats: QuestionSourceStat[] = strategies.map((st) => ({
+    strategy: st,
+    label: strategyLabels[st],
+    count: statsMap.get(st) ?? 0,
+    description: strategyDescriptions[st],
+  }));
+
+  const regionCount = new Map<string, number>();
+  const grapeCount = new Map<string, number>();
+  const aromaCatCount = new Map<string, number>();
+
+  for (const r of finalRecords) {
+    const regionKey = matchRegionKey(r.region) || r.region;
+    regionCount.set(regionKey, (regionCount.get(regionKey) ?? 0) + 1);
+    grapeCount.set(r.grape, (grapeCount.get(r.grape) ?? 0) + 1);
+    const categories = new Set<string>();
+    for (const aroma of r.aromas) {
+      const cat = getAromaCategory(aroma, aromaKeywordsData);
+      if (cat !== "其他") categories.add(cat);
+    }
+    for (const cat of categories) {
+      aromaCatCount.set(cat, (aromaCatCount.get(cat) ?? 0) + 1);
+    }
+  }
+
+  return {
+    records: shuffleArray(finalRecords),
+    stats,
+    regionBreakdown: Array.from(regionCount.entries())
+      .map(([region, count]) => ({ region, count }))
+      .sort((a, b) => b.count - a.count),
+    grapeBreakdown: Array.from(grapeCount.entries())
+      .map(([grape, count]) => ({ grape, count }))
+      .sort((a, b) => b.count - a.count),
+    aromaCategoryBreakdown: Array.from(aromaCatCount.entries())
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count),
+  };
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}

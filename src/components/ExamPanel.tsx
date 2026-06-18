@@ -6,11 +6,21 @@ import {
   QuizAttemptDetail,
   MistakeType,
   weightedSampleRecords,
+  smartPickRecords,
+  SmartPickStrategy,
+  SmartPickConfig,
+  SmartPickResult,
+  QuestionSourceStat,
+  strategyLabels,
+  strategyDescriptions,
 } from "../data/adaptiveReview";
 import { syncQuizSessionToProfile } from "../data/learningProfileSync";
 import { checkRegionAnswer, checkGrapeAnswer, MatchResult } from "../data/answerChecker";
+import { aromaKeywords, AromaCategory, categoryConfig } from "../data/aromaData";
+import { REGION_GROUPS, matchRegionKey } from "../data/regionStats";
 
 type ExamPhase = "setup" | "quiz" | "result";
+type ExamMode = "manual" | "smart";
 
 interface ExamConfig {
   examName: string;
@@ -65,6 +75,13 @@ interface ExamPanelProps {
   onPresetCleared?: () => void;
 }
 
+const ALL_STRATEGIES: SmartPickStrategy[] = [
+  "regionCoverage",
+  "weakGrape",
+  "recentUnpracticed",
+  "aromaCategory",
+];
+
 export default function ExamPanel({
   records,
   onAromaClick,
@@ -78,9 +95,28 @@ export default function ExamPanel({
   const [questionCount, setQuestionCount] = useState(5);
   const [timeLimit, setTimeLimit] = useState(0);
   const [showHints, setShowHints] = useState(true);
+
+  const [examMode, setExamMode] = useState<ExamMode>(
+    presetRecordIds && presetRecordIds.length > 0 ? "manual" : "smart"
+  );
+
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(
     presetRecordIds ? new Set(presetRecordIds) : new Set()
   );
+
+  const [smartStrategies, setSmartStrategies] = useState<Set<SmartPickStrategy>>(
+    new Set(["regionCoverage", "weakGrape", "recentUnpracticed"])
+  );
+  const [regionCoverageRatio, setRegionCoverageRatio] = useState(30);
+  const [weakGrapeRatio, setWeakGrapeRatio] = useState(30);
+  const [recentUnpracticedRatio, setRecentUnpracticedRatio] = useState(25);
+  const [aromaCategoryRatio, setAromaCategoryRatio] = useState(15);
+  const [unpracticedDaysThreshold, setUnpracticedDaysThreshold] = useState(7);
+  const [selectedAromaCategories, setSelectedAromaCategories] = useState<Set<AromaCategory>>(
+    new Set(["水果", "花香", "草本", "橡木", "陈年风味"])
+  );
+  const [smartPickPreview, setSmartPickPreview] = useState<SmartPickResult | null>(null);
+
   const [insufficientRecords, setInsufficientRecords] = useState<{
     show: boolean;
     available: number;
@@ -99,7 +135,83 @@ export default function ExamPanel({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const availableCount = records.length;
-  const effectiveCount = Math.min(questionCount, selectedRecordIds.size, availableCount);
+  const manualEffectiveCount = Math.min(questionCount, selectedRecordIds.size, availableCount);
+
+  useEffect(() => {
+    if (presetRecordIds) {
+      setSelectedRecordIds(new Set(presetRecordIds));
+      setExamMode("manual");
+    }
+    if (presetExamName) {
+      setExamName(presetExamName);
+    }
+  }, [presetRecordIds, presetExamName]);
+
+  const toggleStrategy = useCallback((strategy: SmartPickStrategy) => {
+    setSmartStrategies((prev) => {
+      const next = new Set(prev);
+      if (next.has(strategy)) {
+        next.delete(strategy);
+      } else {
+        next.add(strategy);
+      }
+      return next;
+    });
+    setSmartPickPreview(null);
+  }, []);
+
+  const toggleAromaCategory = useCallback((cat: AromaCategory) => {
+    setSelectedAromaCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) {
+        next.delete(cat);
+      } else {
+        next.add(cat);
+      }
+      return next;
+    });
+    setSmartPickPreview(null);
+  }, []);
+
+  const getSmartPickConfig = useCallback((): SmartPickConfig => {
+    const activeStrategies = Array.from(smartStrategies);
+    return {
+      strategies: activeStrategies,
+      regionCoverageRatio: regionCoverageRatio / 100,
+      weakGrapeRatio: weakGrapeRatio / 100,
+      recentUnpracticedRatio: recentUnpracticedRatio / 100,
+      aromaCategoryRatio: aromaCategoryRatio / 100,
+      unpracticedDaysThreshold,
+      selectedAromaCategories: Array.from(selectedAromaCategories),
+    };
+  }, [
+    smartStrategies,
+    regionCoverageRatio,
+    weakGrapeRatio,
+    recentUnpracticedRatio,
+    aromaCategoryRatio,
+    unpracticedDaysThreshold,
+    selectedAromaCategories,
+  ]);
+
+  const smartPickConfig = useMemo(() => getSmartPickConfig(), [getSmartPickConfig]);
+
+  const generateSmartPreview = useCallback(() => {
+    if (smartStrategies.size === 0 || records.length === 0) {
+      setSmartPickPreview(null);
+      return;
+    }
+    const result = smartPickRecords(records, questionCount, smartPickConfig, aromaKeywords);
+    setSmartPickPreview(result);
+  }, [smartStrategies, records, questionCount, smartPickConfig]);
+
+  useEffect(() => {
+    if (examMode === "smart" && smartStrategies.size > 0 && records.length > 0) {
+      generateSmartPreview();
+    } else {
+      setSmartPickPreview(null);
+    }
+  }, [examMode, smartStrategies, records, questionCount, smartPickConfig, generateSmartPreview]);
 
   const toggleRecord = useCallback((id: string) => {
     setSelectedRecordIds((prev) => {
@@ -120,15 +232,6 @@ export default function ExamPanel({
   const clearSelection = useCallback(() => {
     setSelectedRecordIds(new Set());
   }, []);
-
-  useEffect(() => {
-    if (presetRecordIds) {
-      setSelectedRecordIds(new Set(presetRecordIds));
-    }
-    if (presetExamName) {
-      setExamName(presetExamName);
-    }
-  }, [presetRecordIds, presetExamName]);
 
   useEffect(() => {
     if (phase !== "quiz" || startTime === null) return;
@@ -233,13 +336,43 @@ export default function ExamPanel({
     [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName, records, onProfileSynced]
   );
 
+  const getPickedRecords = useCallback((): WineRecord[] => {
+    if (examMode === "smart") {
+      if (smartPickPreview && smartPickPreview.records.length > 0) {
+        return smartPickPreview.records;
+      }
+      const result = smartPickRecords(records, questionCount, smartPickConfig, aromaKeywords);
+      return result.records;
+    }
+    const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
+    return weightedSampleRecords(selectedRecords, manualEffectiveCount, records);
+  }, [examMode, smartPickPreview, records, questionCount, smartPickConfig, selectedRecordIds, manualEffectiveCount]);
+
+  const effectiveCount = useMemo(() => {
+    if (examMode === "smart") {
+      return Math.min(questionCount, availableCount);
+    }
+    return manualEffectiveCount;
+  }, [examMode, questionCount, availableCount, manualEffectiveCount]);
+
   const startQuiz = useCallback(() => {
-    if (selectedRecordIds.size === 0) return;
     if (!examName.trim()) {
       setExamName("未命名测验");
     }
 
-    if (selectedRecordIds.size < questionCount) {
+    if (examMode === "manual" && selectedRecordIds.size === 0) {
+      return;
+    }
+    if (examMode === "smart" && smartStrategies.size === 0) {
+      return;
+    }
+
+    const picked = getPickedRecords();
+    if (picked.length === 0) {
+      return;
+    }
+
+    if (examMode === "manual" && selectedRecordIds.size < questionCount) {
       setInsufficientRecords({
         show: true,
         available: selectedRecordIds.size,
@@ -249,9 +382,6 @@ export default function ExamPanel({
     }
 
     setInsufficientRecords(null);
-    const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
-    const picked = weightedSampleRecords(selectedRecords, effectiveCount, records);
-
     setQuestions(
       picked.map((record) => ({
         record,
@@ -276,13 +406,11 @@ export default function ExamPanel({
     }, 0);
     setPhase("quiz");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [records, selectedRecordIds, examName, effectiveCount, questionCount]);
+  }, [examMode, selectedRecordIds, smartStrategies, getPickedRecords, examName, questionCount]);
 
   const startQuizWithInsufficient = useCallback(() => {
     setInsufficientRecords(null);
-    const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
-    const picked = weightedSampleRecords(selectedRecords, effectiveCount, records);
-
+    const picked = getPickedRecords();
     setQuestions(
       picked.map((record) => ({
         record,
@@ -307,7 +435,7 @@ export default function ExamPanel({
     }, 0);
     setPhase("quiz");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [records, selectedRecordIds, effectiveCount]);
+  }, [getPickedRecords]);
 
   const updateAnswer = useCallback(
     (field: keyof UserAnswer, value: string) => {
@@ -376,6 +504,15 @@ export default function ExamPanel({
     setTimeLimit(0);
     setShowHints(true);
     setInsufficientRecords(null);
+    setExamMode("smart");
+    setSmartStrategies(new Set(["regionCoverage", "weakGrape", "recentUnpracticed"]));
+    setRegionCoverageRatio(30);
+    setWeakGrapeRatio(30);
+    setRecentUnpracticedRatio(25);
+    setAromaCategoryRatio(15);
+    setUnpracticedDaysThreshold(7);
+    setSelectedAromaCategories(new Set(["水果", "花香", "草本", "橡木", "陈年风味"]));
+    setSmartPickPreview(null);
     onPresetCleared?.();
   }, [restart, onPresetCleared]);
 
@@ -387,7 +524,7 @@ export default function ExamPanel({
             <p>讲师出题</p>
             <h2>测验出题面板</h2>
           </div>
-          {records.length > 0 && (
+          {records.length > 0 && examMode === "manual" && (
             <div style={{ display: "flex", gap: "10px" }}>
               <button onClick={selectAll}>全选</button>
               <button onClick={clearSelection}>清空选择</button>
@@ -395,11 +532,36 @@ export default function ExamPanel({
           )}
         </div>
 
+        <div className="mode-switcher">
+          <button
+            className={`mode-btn ${examMode === "smart" ? "mode-active" : ""}`}
+            onClick={() => setExamMode("smart")}
+          >
+            <span className="mode-icon">🤖</span>
+            <div>
+              <span className="mode-title">智能组卷</span>
+              <span className="mode-desc">按策略自动选题，效率更高</span>
+            </div>
+          </button>
+          <button
+            className={`mode-btn ${examMode === "manual" ? "mode-active" : ""}`}
+            onClick={() => setExamMode("manual")}
+          >
+            <span className="mode-icon">✋</span>
+            <div>
+              <span className="mode-title">手动选择</span>
+              <span className="mode-desc">逐条勾选记录，精确控制</span>
+            </div>
+          </button>
+        </div>
+
         <p className="exam-intro">
-          从现有盲品记录中勾选题目，设置考试参数后生成一套本地可运行的测验。
+          {examMode === "smart"
+            ? "选择智能选题策略，系统自动按条件组合题目，提升组卷效率。"
+            : "从现有盲品记录中勾选题目，设置考试参数后生成一套本地可运行的测验。"}
         </p>
 
-        {presetRecordIds && presetRecordIds.length > 0 && (
+        {presetRecordIds && presetRecordIds.length > 0 && examMode === "manual" && (
           <div className="preset-notice">
             <span className="preset-icon">📍</span>
             <div className="preset-content">
@@ -463,13 +625,22 @@ export default function ExamPanel({
                 onChange={(e) => setQuestionCount(Number(e.target.value))}
               >
                 {[3, 5, 8, 10, 15, 20].map((n) => (
-                  <option key={n} value={n} disabled={n > selectedRecordIds.size}>
+                  <option
+                    key={n}
+                    value={n}
+                    disabled={examMode === "manual" && n > selectedRecordIds.size}
+                  >
                     {n} 题
                   </option>
                 ))}
-                {selectedRecordIds.size > 0 && (
+                {examMode === "manual" && selectedRecordIds.size > 0 && (
                   <option value={selectedRecordIds.size}>
                     全部 {selectedRecordIds.size} 题
+                  </option>
+                )}
+                {examMode === "smart" && records.length > 20 && (
+                  <option value={records.length}>
+                    全部 {records.length} 题
                   </option>
                 )}
               </select>
@@ -505,14 +676,137 @@ export default function ExamPanel({
             </label>
           </div>
 
+          {examMode === "smart" && (
+            <div className="smart-config-section">
+              <h3 className="smart-config-title">智能选题策略</h3>
+              <div className="strategy-grid">
+                {ALL_STRATEGIES.map((strategy) => {
+                  const active = smartStrategies.has(strategy);
+                  return (
+                    <label
+                      key={strategy}
+                      className={`strategy-card ${active ? "strategy-active" : ""}`}
+                    >
+                      <div className="strategy-check">
+                        <input
+                          type="checkbox"
+                          checked={active}
+                          onChange={() => toggleStrategy(strategy)}
+                        />
+                      </div>
+                      <div className="strategy-body">
+                        <span className="strategy-name">{strategyLabels[strategy]}</span>
+                        <span className="strategy-desc">{strategyDescriptions[strategy]}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {smartStrategies.size > 0 && (
+                <div className="ratio-config">
+                  <h4 className="ratio-title">策略权重分配（总比例 {Array.from(smartStrategies).reduce((s, st) => {
+                    const ratios: Record<SmartPickStrategy, number> = {
+                      regionCoverage: regionCoverageRatio,
+                      weakGrape: weakGrapeRatio,
+                      recentUnpracticed: recentUnpracticedRatio,
+                      aromaCategory: aromaCategoryRatio,
+                    };
+                    return s + ratios[st];
+                  }, 0)}%）</h4>
+                  <div className="ratio-sliders">
+                    {Array.from(smartStrategies).map((strategy) => {
+                      const ratios: Record<SmartPickStrategy, [number, (v: number) => void]> = {
+                        regionCoverage: [regionCoverageRatio, setRegionCoverageRatio],
+                        weakGrape: [weakGrapeRatio, setWeakGrapeRatio],
+                        recentUnpracticed: [recentUnpracticedRatio, setRecentUnpracticedRatio],
+                        aromaCategory: [aromaCategoryRatio, setAromaCategoryRatio],
+                      };
+                      const [value, setter] = ratios[strategy];
+                      return (
+                        <div key={strategy} className="ratio-row">
+                          <span className="ratio-label">{strategyLabels[strategy]}</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={value}
+                            onChange={(e) => {
+                              setter(Number(e.target.value));
+                              setSmartPickPreview(null);
+                            }}
+                            disabled={!smartStrategies.has(strategy)}
+                          />
+                          <span className="ratio-value">{value}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {smartStrategies.has("recentUnpracticed") && (
+                    <div className="threshold-config">
+                      <label>
+                        <span>未练习天数阈值</span>
+                        <select
+                          value={unpracticedDaysThreshold}
+                          onChange={(e) => {
+                            setUnpracticedDaysThreshold(Number(e.target.value));
+                            setSmartPickPreview(null);
+                          }}
+                        >
+                          {[3, 5, 7, 14, 30].map((d) => (
+                            <option key={d} value={d}>{d} 天</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+
+                  {smartStrategies.has("aromaCategory") && (
+                    <div className="aroma-categories-config">
+                      <span className="aroma-cat-label">香气类别筛选：</span>
+                      <div className="aroma-cat-tags">
+                        {(Object.keys(categoryConfig) as AromaCategory[]).map((cat) => {
+                          const config = categoryConfig[cat];
+                          const selected = selectedAromaCategories.has(cat);
+                          return (
+                            <button
+                              key={cat}
+                              className={`aroma-cat-tag ${selected ? "aroma-cat-selected" : ""}`}
+                              style={selected ? { backgroundColor: config.color + "20", borderColor: config.color, color: config.color } : {}}
+                              onClick={() => toggleAromaCategory(cat)}
+                            >
+                              <span>{config.icon}</span> {config.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {smartPickPreview && smartPickPreview.records.length > 0 && (
+                <QuestionSourceStats
+                  preview={smartPickPreview}
+                />
+              )}
+            </div>
+          )}
+
           <div className="exam-summary">
             <div className="exam-summary-item">
               <span>可用题库</span>
               <strong>{availableCount} 题</strong>
             </div>
             <div className="exam-summary-item">
-              <span>已勾选</span>
-              <strong>{selectedRecordIds.size} 题</strong>
+              <span>{examMode === "smart" ? "选题策略" : "已勾选"}</span>
+              <strong>
+                {examMode === "smart"
+                  ? `${smartStrategies.size} 个策略`
+                  : `${selectedRecordIds.size} 题`}
+              </strong>
             </div>
             <div className="exam-summary-item">
               <span>本次测验</span>
@@ -521,63 +815,68 @@ export default function ExamPanel({
           </div>
         </div>
 
-        <div className="records-selector">
-          <h3 className="records-selector-title">选择题目</h3>
-          {records.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-icon">🍷</span>
-              <p>暂无盲品记录</p>
-              <p className="empty-hint">请先在下方「近期记录」中添加品鉴记录</p>
-            </div>
-          ) : (
-            <div className="record-select-list">
-              {records.map((record, index) => {
-                const checked = selectedRecordIds.has(record.id);
-                return (
-                  <label
-                    key={record.id}
-                    className={`record-select-item ${
-                      checked ? "record-selected" : ""
-                    }`}
-                  >
-                    <div className="record-select-check">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleRecord(record.id)}
-                      />
-                    </div>
-                    <div className="record-select-index">
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
-                    <div className="record-select-body">
-                      <div className="record-select-head">
-                        <h4>{record.name}</h4>
-                        <span className="record-select-meta">
-                          {[record.grape, record.region, record.year]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
+        {examMode === "manual" && (
+          <div className="records-selector">
+            <h3 className="records-selector-title">选择题目</h3>
+            {records.length === 0 ? (
+              <div className="empty-state">
+                <span className="empty-icon">🍷</span>
+                <p>暂无盲品记录</p>
+                <p className="empty-hint">请先在下方「近期记录」中添加品鉴记录</p>
+              </div>
+            ) : (
+              <div className="record-select-list">
+                {records.map((record, index) => {
+                  const checked = selectedRecordIds.has(record.id);
+                  return (
+                    <label
+                      key={record.id}
+                      className={`record-select-item ${
+                        checked ? "record-selected" : ""
+                      }`}
+                    >
+                      <div className="record-select-check">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRecord(record.id)}
+                        />
                       </div>
-                      <div className="record-select-aromas">
-                        {record.aromas.map((a) => (
-                          <span key={a} className="aroma-tag aroma-tag-small">
-                            {a}
+                      <div className="record-select-index">
+                        {String(index + 1).padStart(2, "0")}
+                      </div>
+                      <div className="record-select-body">
+                        <div className="record-select-head">
+                          <h4>{record.name}</h4>
+                          <span className="record-select-meta">
+                            {[record.grape, record.region, record.year]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
-                        ))}
+                        </div>
+                        <div className="record-select-aromas">
+                          {record.aromas.map((a) => (
+                            <span key={a} className="aroma-tag aroma-tag-small">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           className="primary-action exam-generate-btn"
           onClick={startQuiz}
-          disabled={selectedRecordIds.size === 0}
+          disabled={
+            (examMode === "manual" && selectedRecordIds.size === 0) ||
+            (examMode === "smart" && smartStrategies.size === 0)
+          }
         >
           生成测验并开始
         </button>
@@ -930,6 +1229,80 @@ export default function ExamPanel({
         ))}
       </div>
     </section>
+  );
+}
+
+function QuestionSourceStats({ preview }: { preview: SmartPickResult }) {
+  return (
+    <div className="source-stats-section">
+      <h4 className="source-stats-title">📊 题目来源统计预览</h4>
+
+      <div className="source-stats-grid">
+        <div className="source-stats-card">
+          <span className="source-stats-card-label">选题来源</span>
+          <div className="source-stats-list">
+            {preview.stats.map((s: QuestionSourceStat) => (
+              <div key={s.strategy} className="source-stat-row">
+                <span className="source-stat-name">{s.label}</span>
+                <span className="source-stat-count">{s.count} 题</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="source-stats-card">
+          <span className="source-stats-card-label">产区分布</span>
+          <div className="source-stats-list">
+            {preview.regionBreakdown.slice(0, 5).map(({ region, count }) => {
+              const group = REGION_GROUPS.find((g) => g.key === matchRegionKey(region)) ||
+                REGION_GROUPS.find((g) => region.includes(g.name));
+              return (
+                <div key={region} className="source-stat-row">
+                  <span
+                    className="source-stat-name"
+                    style={group ? { color: group.color } : {}}
+                  >
+                    {group?.name || region}
+                  </span>
+                  <span className="source-stat-count">{count} 题</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="source-stats-card">
+          <span className="source-stats-card-label">品种分布</span>
+          <div className="source-stats-list">
+            {preview.grapeBreakdown.slice(0, 5).map(({ grape, count }) => (
+              <div key={grape} className="source-stat-row">
+                <span className="source-stat-name">{grape}</span>
+                <span className="source-stat-count">{count} 题</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {preview.aromaCategoryBreakdown.length > 0 && (
+          <div className="source-stats-card">
+            <span className="source-stats-card-label">香气类别</span>
+            <div className="source-stats-list">
+              {preview.aromaCategoryBreakdown.map(({ category, count }) => {
+                const config = (categoryConfig as Record<string, { icon: string; label: string }>)[category];
+                return (
+                  <div key={category} className="source-stat-row">
+                    <span className="source-stat-name">
+                      {config?.icon} {config?.label || category}
+                    </span>
+                    <span className="source-stat-count">{count} 题</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
