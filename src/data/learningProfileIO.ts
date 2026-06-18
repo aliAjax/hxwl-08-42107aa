@@ -204,17 +204,18 @@ function deduplicateById<T extends { id: string }>(
   incoming: T[],
   existing: T[],
   mode: ImportMode
-): { toAdd: T[]; duplicateIds: string[] } {
+): { toAdd: T[]; duplicateIds: string[]; duplicateRecords: T[] } {
   const existingIds = new Set(existing.map((e) => e.id));
-  const duplicateIds = incoming.filter((item) => existingIds.has(item.id)).map((item) => item.id);
+  const duplicateRecords = incoming.filter((item) => existingIds.has(item.id));
+  const duplicateIds = duplicateRecords.map((item) => item.id);
 
   if (mode === "skip") {
     const toAdd = incoming.filter((item) => !existingIds.has(item.id));
-    return { toAdd, duplicateIds };
+    return { toAdd, duplicateIds, duplicateRecords };
   }
 
   if (mode === "overwrite") {
-    return { toAdd: incoming, duplicateIds };
+    return { toAdd: incoming, duplicateIds, duplicateRecords };
   }
 
   const toAdd = incoming.map((item) => {
@@ -223,7 +224,7 @@ function deduplicateById<T extends { id: string }>(
     }
     return item;
   });
-  return { toAdd, duplicateIds };
+  return { toAdd, duplicateIds, duplicateRecords };
 }
 
 export async function parseImportPreview(
@@ -251,7 +252,7 @@ export async function parseImportPreview(
   const allMigratedFields: string[] = [];
 
   const validatedBlind: BlindTastingRecord[] = [];
-  let blindInvalid = 0;
+  const blindInvalidRecords: unknown[] = [];
   for (const raw of rawBlind) {
     if (isValidBlindTastingRecord(raw)) {
       const migrated = migrateBlindTastingRecord(raw as unknown as Record<string, unknown>);
@@ -260,12 +261,12 @@ export async function parseImportPreview(
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & BlindTastingRecord;
       validatedBlind.push(clean);
     } else {
-      blindInvalid++;
+      blindInvalidRecords.push(raw);
     }
   }
 
   const validatedQuiz: QuizResultRecord[] = [];
-  let quizInvalid = 0;
+  const quizInvalidRecords: unknown[] = [];
   for (const raw of rawQuiz) {
     if (isValidQuizResultRecord(raw)) {
       const migrated = migrateQuizResultRecord(raw as unknown as Record<string, unknown>);
@@ -274,12 +275,12 @@ export async function parseImportPreview(
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & QuizResultRecord;
       validatedQuiz.push(clean);
     } else {
-      quizInvalid++;
+      quizInvalidRecords.push(raw);
     }
   }
 
   const validatedReview: ReviewPlanRecord[] = [];
-  let reviewInvalid = 0;
+  const reviewInvalidRecords: unknown[] = [];
   for (const raw of rawReview) {
     if (isValidReviewPlanRecord(raw)) {
       const migrated = migrateReviewPlanRecord(raw as unknown as Record<string, unknown>);
@@ -288,12 +289,12 @@ export async function parseImportPreview(
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & ReviewPlanRecord;
       validatedReview.push(clean);
     } else {
-      reviewInvalid++;
+      reviewInvalidRecords.push(raw);
     }
   }
 
   const validatedConfusion: ConfusionItem[] = [];
-  let confusionInvalid = 0;
+  const confusionInvalidRecords: unknown[] = [];
   for (const raw of rawConfusion) {
     if (isValidConfusionItem(raw)) {
       const migrated = migrateConfusionItem(raw as unknown as Record<string, unknown>);
@@ -302,7 +303,7 @@ export async function parseImportPreview(
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & ConfusionItem;
       validatedConfusion.push(clean);
     } else {
-      confusionInvalid++;
+      confusionInvalidRecords.push(raw);
     }
   }
 
@@ -322,28 +323,36 @@ export async function parseImportPreview(
     totalInFile: rawBlind.length,
     toAdd: blindResult.toAdd,
     duplicateIds: blindResult.duplicateIds,
-    invalidCount: blindInvalid,
+    duplicateRecords: blindResult.duplicateRecords,
+    invalidCount: blindInvalidRecords.length,
+    invalidRecords: blindInvalidRecords,
   };
 
   const quizPreview: RecordCategoryPreview<QuizResultRecord> = {
     totalInFile: rawQuiz.length,
     toAdd: quizResult.toAdd,
     duplicateIds: quizResult.duplicateIds,
-    invalidCount: quizInvalid,
+    duplicateRecords: quizResult.duplicateRecords,
+    invalidCount: quizInvalidRecords.length,
+    invalidRecords: quizInvalidRecords,
   };
 
   const reviewPreview: RecordCategoryPreview<ReviewPlanRecord> = {
     totalInFile: rawReview.length,
     toAdd: reviewResult.toAdd,
     duplicateIds: reviewResult.duplicateIds,
-    invalidCount: reviewInvalid,
+    duplicateRecords: reviewResult.duplicateRecords,
+    invalidCount: reviewInvalidRecords.length,
+    invalidRecords: reviewInvalidRecords,
   };
 
   const confusionPreview: RecordCategoryPreview<ConfusionItem> = {
     totalInFile: rawConfusion.length,
     toAdd: confusionResult.toAdd,
     duplicateIds: confusionResult.duplicateIds,
-    invalidCount: confusionInvalid,
+    duplicateRecords: confusionResult.duplicateRecords,
+    invalidCount: confusionInvalidRecords.length,
+    invalidRecords: confusionInvalidRecords,
   };
 
   return {

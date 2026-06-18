@@ -96,7 +96,9 @@ export interface RecordCategoryPreview<T> {
   totalInFile: number;
   toAdd: T[];
   duplicateIds: string[];
+  duplicateRecords: T[];
   invalidCount: number;
+  invalidRecords: unknown[];
 }
 
 export interface ImportPreview {

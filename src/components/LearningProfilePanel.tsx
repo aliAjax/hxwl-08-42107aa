@@ -358,7 +358,7 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
                     <summary>查看将新增的 {importPreview.blindTasting.toAdd.length} 条记录</summary>
                     <div className="preview-records">
                       {importPreview.blindTasting.toAdd.slice(0, 10).map((r) => (
-                        <div key={r.id} className="preview-record">
+                        <div key={r.id} className="preview-record preview-record-success">
                           <strong>{r.wineName}</strong>
                           <span className="preview-record-meta">{r.region} · {r.grape}</span>
                         </div>
@@ -369,8 +369,38 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
                     </div>
                   </details>
                 )}
-                {importPreview.blindTasting.duplicateIds.length > 0 && (
-                  <p className="preview-dupes">重复 ID：{importPreview.blindTasting.duplicateIds.slice(0, 5).join(", ")}{importPreview.blindTasting.duplicateIds.length > 5 ? ` ...等 ${importPreview.blindTasting.duplicateIds.length} 个` : ""}</p>
+                {importPreview.blindTasting.duplicateRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看重复的 {importPreview.blindTasting.duplicateRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.blindTasting.duplicateRecords.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record preview-record-warning">
+                          <strong>{r.wineName}</strong>
+                          <span className="preview-record-meta">{r.region} · {r.grape}</span>
+                          <span className="preview-record-id">ID: {r.id.slice(0, 8)}...</span>
+                        </div>
+                      ))}
+                      {importPreview.blindTasting.duplicateRecords.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.blindTasting.duplicateRecords.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.blindTasting.invalidRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看无效的 {importPreview.blindTasting.invalidRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.blindTasting.invalidRecords.slice(0, 5).map((r, i) => (
+                        <div key={i} className="preview-record preview-record-danger">
+                          <strong>无效记录 #{i + 1}</strong>
+                          <pre className="preview-record-json">{JSON.stringify(r, null, 2).slice(0, 300)}{JSON.stringify(r).length > 300 ? "..." : ""}</pre>
+                        </div>
+                      ))}
+                      {importPreview.blindTasting.invalidRecords.length > 5 && (
+                        <p className="preview-more">...还有 {importPreview.blindTasting.invalidRecords.length - 5} 条</p>
+                      )}
+                    </div>
+                  </details>
                 )}
               </div>
             )}
@@ -389,13 +419,46 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
                     <summary>查看将新增的 {importPreview.quizResults.toAdd.length} 条记录</summary>
                     <div className="preview-records">
                       {importPreview.quizResults.toAdd.slice(0, 10).map((r) => (
-                        <div key={r.id} className="preview-record">
+                        <div key={r.id} className="preview-record preview-record-success">
                           <strong>场次 {r.sessionId.slice(0, 8)}</strong>
                           <span className="preview-record-meta">{r.correctCount}/{r.totalQuestions} 正确 · {Math.round(r.accuracy * 100)}%</span>
                         </div>
                       ))}
                       {importPreview.quizResults.toAdd.length > 10 && (
                         <p className="preview-more">...还有 {importPreview.quizResults.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.quizResults.duplicateRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看重复的 {importPreview.quizResults.duplicateRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.quizResults.duplicateRecords.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record preview-record-warning">
+                          <strong>场次 {r.sessionId.slice(0, 8)}</strong>
+                          <span className="preview-record-meta">{r.correctCount}/{r.totalQuestions} 正确 · {Math.round(r.accuracy * 100)}%</span>
+                          <span className="preview-record-id">ID: {r.id.slice(0, 8)}...</span>
+                        </div>
+                      ))}
+                      {importPreview.quizResults.duplicateRecords.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.quizResults.duplicateRecords.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.quizResults.invalidRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看无效的 {importPreview.quizResults.invalidRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.quizResults.invalidRecords.slice(0, 5).map((r, i) => (
+                        <div key={i} className="preview-record preview-record-danger">
+                          <strong>无效记录 #{i + 1}</strong>
+                          <pre className="preview-record-json">{JSON.stringify(r, null, 2).slice(0, 300)}{JSON.stringify(r).length > 300 ? "..." : ""}</pre>
+                        </div>
+                      ))}
+                      {importPreview.quizResults.invalidRecords.length > 5 && (
+                        <p className="preview-more">...还有 {importPreview.quizResults.invalidRecords.length - 5} 条</p>
                       )}
                     </div>
                   </details>
@@ -417,13 +480,46 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
                     <summary>查看将新增的 {importPreview.reviewPlans.toAdd.length} 条记录</summary>
                     <div className="preview-records">
                       {importPreview.reviewPlans.toAdd.slice(0, 10).map((r) => (
-                        <div key={r.id} className="preview-record">
+                        <div key={r.id} className="preview-record preview-record-success">
                           <strong>{r.wineName}</strong>
                           <span className="preview-record-meta">{r.grape} · {r.scheduledDate} · {r.completed ? "已完成" : "待复习"}</span>
                         </div>
                       ))}
                       {importPreview.reviewPlans.toAdd.length > 10 && (
                         <p className="preview-more">...还有 {importPreview.reviewPlans.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.reviewPlans.duplicateRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看重复的 {importPreview.reviewPlans.duplicateRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.reviewPlans.duplicateRecords.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record preview-record-warning">
+                          <strong>{r.wineName}</strong>
+                          <span className="preview-record-meta">{r.grape} · {r.scheduledDate} · {r.completed ? "已完成" : "待复习"}</span>
+                          <span className="preview-record-id">ID: {r.id.slice(0, 8)}...</span>
+                        </div>
+                      ))}
+                      {importPreview.reviewPlans.duplicateRecords.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.reviewPlans.duplicateRecords.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.reviewPlans.invalidRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看无效的 {importPreview.reviewPlans.invalidRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.reviewPlans.invalidRecords.slice(0, 5).map((r, i) => (
+                        <div key={i} className="preview-record preview-record-danger">
+                          <strong>无效记录 #{i + 1}</strong>
+                          <pre className="preview-record-json">{JSON.stringify(r, null, 2).slice(0, 300)}{JSON.stringify(r).length > 300 ? "..." : ""}</pre>
+                        </div>
+                      ))}
+                      {importPreview.reviewPlans.invalidRecords.length > 5 && (
+                        <p className="preview-more">...还有 {importPreview.reviewPlans.invalidRecords.length - 5} 条</p>
                       )}
                     </div>
                   </details>
@@ -445,13 +541,46 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
                     <summary>查看将新增的 {importPreview.confusionItems.toAdd.length} 条记录</summary>
                     <div className="preview-records">
                       {importPreview.confusionItems.toAdd.slice(0, 10).map((r) => (
-                        <div key={r.id} className="preview-record">
+                        <div key={r.id} className="preview-record preview-record-success">
                           <strong>{r.wineA.region} ⇄ {r.wineB.region}</strong>
                           <span className="preview-record-meta">{r.wineA.grape} / {r.wineB.grape} · {r.confusionCount}次互混</span>
                         </div>
                       ))}
                       {importPreview.confusionItems.toAdd.length > 10 && (
                         <p className="preview-more">...还有 {importPreview.confusionItems.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.confusionItems.duplicateRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看重复的 {importPreview.confusionItems.duplicateRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.confusionItems.duplicateRecords.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record preview-record-warning">
+                          <strong>{r.wineA.region} ⇄ {r.wineB.region}</strong>
+                          <span className="preview-record-meta">{r.wineA.grape} / {r.wineB.grape} · {r.confusionCount}次互混</span>
+                          <span className="preview-record-id">ID: {r.id.slice(0, 8)}...</span>
+                        </div>
+                      ))}
+                      {importPreview.confusionItems.duplicateRecords.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.confusionItems.duplicateRecords.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.confusionItems.invalidRecords.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看无效的 {importPreview.confusionItems.invalidRecords.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.confusionItems.invalidRecords.slice(0, 5).map((r, i) => (
+                        <div key={i} className="preview-record preview-record-danger">
+                          <strong>无效记录 #{i + 1}</strong>
+                          <pre className="preview-record-json">{JSON.stringify(r, null, 2).slice(0, 300)}{JSON.stringify(r).length > 300 ? "..." : ""}</pre>
+                        </div>
+                      ))}
+                      {importPreview.confusionItems.invalidRecords.length > 5 && (
+                        <p className="preview-more">...还有 {importPreview.confusionItems.invalidRecords.length - 5} 条</p>
                       )}
                     </div>
                   </details>
