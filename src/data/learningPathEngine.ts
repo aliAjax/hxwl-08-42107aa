@@ -341,6 +341,25 @@ export async function analyzeCoverageGaps(
   return gaps.sort((a, b) => a.coverageRate - b.coverageRate);
 }
 
+interface AttemptWithTimestamp extends QuizAttemptDetail {
+  timestamp: number;
+}
+
+function getAttemptsWithTimestamps(sessions: QuizSession[]): AttemptWithTimestamp[] {
+  const result: AttemptWithTimestamp[] = [];
+  for (const session of sessions) {
+    let accumulatedTime = 0;
+    for (const attempt of session.attempts) {
+      result.push({
+        ...attempt,
+        timestamp: session.startTime + accumulatedTime,
+      });
+      accumulatedTime += attempt.timeSpentMs;
+    }
+  }
+  return result;
+}
+
 export async function buildTaskExplanation(
   stats: WineStats,
   taskType: TaskType,
@@ -354,8 +373,8 @@ export async function buildTaskExplanation(
 
   const now = Date.now();
   const sessions = await getAllSessions();
-  const attempts = sessions.flatMap((s) => s.attempts);
-  const wineAttempts = attempts.filter(
+  const attemptsWithTs = getAttemptsWithTimestamps(sessions);
+  const wineAttempts = attemptsWithTs.filter(
     (a) => a.questionId === stats.id && a.source === stats.source
   );
 
@@ -370,13 +389,13 @@ export async function buildTaskExplanation(
     const mistakeAttempts = wineAttempts.filter((a) => a.mistakeType !== "none");
     if (mistakeAttempts.length > 0) {
       const recentMistake = mistakeAttempts[mistakeAttempts.length - 1];
-      const daysAgo = Math.round((now - recentMistake.timeSpentMs) / 86400000);
+      const daysAgo = Math.max(0, Math.round((now - recentMistake.timestamp) / 86400000));
       evidences.push({
         type: "mistake_history",
         description: `历史错误${mistakeAttempts.length}次`,
         detail: `最近一次错误在${daysAgo}天前，错误类型：${formatMistakeType(recentMistake.mistakeType)}，当时答案：${recentMistake.userRegionAnswer} / ${recentMistake.userGrapeAnswer}`,
         relatedRecordIds: [recentMistake.questionId],
-        timestamp: recentMistake.timeSpentMs,
+        timestamp: recentMistake.timestamp,
       });
       summaryParts.push(`错题${mistakeAttempts.length}次`);
     }

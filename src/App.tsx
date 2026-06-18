@@ -19,7 +19,6 @@ import { useWineRecords } from "./hooks/useWineRecords";
 import { WineRecordInput, WineRecord } from "./data/wineRecordTypes";
 import { matchRegionKey } from "./data/regionStats";
 import { triggerPathRefreshAfterQuiz, triggerPathRefreshAfterImport, triggerPathRefreshAfterRecordsChange } from "./data/learningPathStore";
-import { QuizSession } from "./data/adaptiveReview";
 
 const project = {
   id: "hxwl-08",
@@ -76,36 +75,36 @@ function App() {
     setLearningPathRefreshSignal((s) => s + 1);
   }, []);
 
+  const showToast = useCallback((message: string, tone: "warn" | "info" = "warn") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, tone });
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }, []);
+
   const handleReviewPlanGenerated = useCallback(() => {
     setReviewPlanRefreshSignal((s) => s + 1);
     setProfileRefreshSignal((s) => s + 1);
   }, []);
 
-  const handleQuizCompletedForPath = useCallback(
-    async (session: QuizSession, records: WineRecord[]) => {
-      try {
-        await triggerPathRefreshAfterQuiz(session, records);
-        setLearningPathRefreshSignal((s) => s + 1);
-        showToast("学习路径已根据测验结果更新", "info");
-      } catch {
-        showToast("学习路径更新失败", "warn");
-      }
-    },
-    [showToast]
-  );
+  const handleQuizCompletedForPath = useCallback(async () => {
+    try {
+      await triggerPathRefreshAfterQuiz();
+      setLearningPathRefreshSignal((s) => s + 1);
+      showToast("学习路径已根据测验结果更新", "info");
+    } catch {
+      showToast("学习路径更新失败", "warn");
+    }
+  }, [showToast]);
 
-  const handleImportCompletedForPath = useCallback(
-    async (records: WineRecord[]) => {
-      try {
-        await triggerPathRefreshAfterImport(records);
-        setLearningPathRefreshSignal((s) => s + 1);
-        showToast("学习路径已根据导入档案更新", "info");
-      } catch {
-        showToast("学习路径更新失败", "warn");
-      }
-    },
-    [showToast]
-  );
+  const handleImportCompletedForPath = useCallback(async () => {
+    try {
+      await triggerPathRefreshAfterImport();
+      setLearningPathRefreshSignal((s) => s + 1);
+      showToast("学习路径已根据导入档案更新", "info");
+    } catch {
+      showToast("学习路径更新失败", "warn");
+    }
+  }, [showToast]);
 
   const handleReviewTaskStatusChanged = useCallback(() => {
     setProfileRefreshSignal((s) => s + 1);
@@ -133,12 +132,6 @@ function App() {
   const [filterRegion, setFilterRegion] = useState<string>("");
   const [filterGrape, setFilterGrape] = useState<string>("");
   const [filterAroma, setFilterAroma] = useState<string>("");
-
-  const showToast = useCallback((message: string, tone: "warn" | "info" = "warn") => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ message, tone });
-    toastTimer.current = setTimeout(() => setToast(null), 2600);
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -204,8 +197,7 @@ function App() {
           showToast("记录已添加", "info");
         }
         setFormState({ open: false, mode: "add" });
-        const updatedRecords = formState.mode === "edit" ? records : [...records, { ...data, id: "temp" } as WineRecord];
-        await triggerPathRefreshAfterRecordsChange(updatedRecords);
+        await triggerPathRefreshAfterRecordsChange();
         setLearningPathRefreshSignal((s) => s + 1);
       } catch {
         showToast(formState.mode === "edit" ? "更新失败" : "添加失败", "warn");
@@ -224,8 +216,7 @@ function App() {
     try {
       await deleteRecord(deleteConfirm);
       showToast("记录已删除", "info");
-      const updatedRecords = records.filter((r) => r.id !== deleteConfirm);
-      await triggerPathRefreshAfterRecordsChange(updatedRecords);
+      await triggerPathRefreshAfterRecordsChange();
       setLearningPathRefreshSignal((s) => s + 1);
     } catch {
       showToast("删除失败", "warn");

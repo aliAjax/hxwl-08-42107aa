@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   LearningPath,
   PathTask,
@@ -54,23 +54,36 @@ export function useLearningPath(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pathVersion, setPathVersion] = useState(0);
+  const recordsRef = useRef(records);
+  const optionsRef = useRef(options);
+
+  useEffect(() => {
+    recordsRef.current = records;
+  }, [records]);
+
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const loadPath = useCallback(async () => {
-    if (records.length === 0) {
+    const currentRecords = recordsRef.current;
+    const currentOptions = optionsRef.current;
+    if (currentRecords.length === 0) {
       setLoading(false);
+      setLearningPath(null);
       return;
     }
     try {
       setLoading(true);
       setError(null);
-      const path = await getCurrentLearningPath(records, options);
+      const path = await getCurrentLearningPath(currentRecords, currentOptions);
       setLearningPath(path);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载学习路径失败");
     } finally {
       setLoading(false);
     }
-  }, [records.length, options.daysAhead, options.maxTasksPerDay]);
+  }, []);
 
   useEffect(() => {
     loadPath();

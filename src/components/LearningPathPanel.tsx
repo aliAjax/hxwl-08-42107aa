@@ -74,11 +74,15 @@ export default function LearningPathPanel({
     return (
       <section className="learning-path-panel panel">
         <div className="section-heading">
-          <h2>📚 学习路径</h2>
+          <div>
+            <p>智能学习规划</p>
+            <h2>📚 7天学习路径</h2>
+          </div>
         </div>
-        <div style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>
-          <div style={{ fontSize: "24px", marginBottom: "12px" }}>⏳</div>
-          <p>正在生成个性化学习路径...</p>
+        <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
+          <div style={{ fontSize: "32px", marginBottom: "12px" }}>⏳</div>
+          <p style={{ marginBottom: "8px" }}>正在生成个性化学习路径...</p>
+          <p style={{ fontSize: "12px" }}>基于您的学习历史、遗忘曲线和知识覆盖度智能规划</p>
         </div>
       </section>
     );
@@ -88,21 +92,25 @@ export default function LearningPathPanel({
     return (
       <section className="learning-path-panel panel">
         <div className="section-heading">
-          <h2>📚 学习路径</h2>
+          <div>
+            <p>智能学习规划</p>
+            <h2>📚 7天学习路径</h2>
+          </div>
         </div>
-        <div style={{ textAlign: "center", padding: "40px", color: "#ef4444" }}>
-          <div style={{ fontSize: "24px", marginBottom: "12px" }}>❌</div>
-          <p>{error}</p>
+        <div style={{ textAlign: "center", padding: "40px 20px", color: "#ef4444" }}>
+          <div style={{ fontSize: "32px", marginBottom: "12px" }}>❌</div>
+          <p style={{ marginBottom: "8px" }}>{error}</p>
           <button
             onClick={handleRefresh}
             style={{
-              marginTop: "16px",
-              padding: "8px 16px",
+              marginTop: "12px",
+              padding: "8px 20px",
               background: "var(--accent)",
               color: "white",
               border: "none",
               borderRadius: "8px",
               cursor: "pointer",
+              fontSize: "13px",
             }}
           >
             重新生成
@@ -112,8 +120,52 @@ export default function LearningPathPanel({
     );
   }
 
-  if (!learningPath) {
-    return null;
+  if (!learningPath || records.length === 0) {
+    return (
+      <section className="learning-path-panel panel">
+        <div className="section-heading">
+          <div>
+            <p>智能学习规划</p>
+            <h2>📚 7天学习路径</h2>
+          </div>
+        </div>
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>📖</div>
+          <h3 style={{ fontSize: "16px", color: "var(--text)", marginBottom: "8px" }}>
+            开始您的学习之旅
+          </h3>
+          <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "20px" }}>
+            添加葡萄酒记录或开始测验后，系统将自动生成个性化学习路径
+          </p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              maxWidth: "280px",
+              margin: "0 auto",
+              textAlign: "left",
+              padding: "16px",
+              background: "var(--bg-secondary)",
+              borderRadius: "10px",
+            }}
+          >
+            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+              <span style={{ color: "var(--accent)", marginRight: "8px" }}>✓</span>
+              基于艾宾浩斯遗忘曲线智能安排复习
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+              <span style={{ color: "var(--accent)", marginRight: "8px" }}>✓</span>
+              识别薄弱维度和知识覆盖缺口
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+              <span style={{ color: "var(--accent)", marginRight: "8px" }}>✓</span>
+              每个推荐都有完整的可解释依据
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (

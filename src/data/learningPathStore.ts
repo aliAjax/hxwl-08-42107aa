@@ -123,23 +123,16 @@ export async function refreshLearningPath(
   return path;
 }
 
-export async function triggerPathRefreshAfterQuiz(
-  session: QuizSession,
-  records: WineRecord[]
-): Promise<LearningPath> {
-  return refreshLearningPath(records, "quiz_completed");
+export async function triggerPathRefreshAfterQuiz(): Promise<LearningPath> {
+  return refreshLearningPath(undefined, "quiz_completed");
 }
 
-export async function triggerPathRefreshAfterImport(
-  records: WineRecord[]
-): Promise<LearningPath> {
-  return refreshLearningPath(records, "profile_imported");
+export async function triggerPathRefreshAfterImport(): Promise<LearningPath> {
+  return refreshLearningPath(undefined, "profile_imported");
 }
 
-export async function triggerPathRefreshAfterRecordsChange(
-  records: WineRecord[]
-): Promise<LearningPath> {
-  return refreshLearningPath(records, "records_changed");
+export async function triggerPathRefreshAfterRecordsChange(): Promise<LearningPath> {
+  return refreshLearningPath(undefined, "records_changed");
 }
 
 export async function togglePathTaskCompleted(
