@@ -23,7 +23,7 @@ import {
 const DB_NAME = "hxwl-08-unified-store";
 const DB_VERSION = 1;
 
-const STORES = {
+export const STORES = {
   quizSessions: "quizSessions",
   blindTastings: "blindTastings",
   quizResults: "quizResults",
@@ -55,7 +55,7 @@ const LEGACY_IDB_NAMES = {
 let dbInstance: IDBDatabase | null = null;
 let initPromise: Promise<IDBDatabase> | null = null;
 
-function openUnifiedDB(): Promise<IDBDatabase> {
+export function openUnifiedDB(): Promise<IDBDatabase> {
   if (dbInstance) return Promise.resolve(dbInstance);
   if (initPromise) return initPromise;
 

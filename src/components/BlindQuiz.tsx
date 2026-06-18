@@ -66,9 +66,10 @@ interface BlindQuizProps {
   onAromaClick?: (aroma: string) => void;
   records: WineRecord[];
   onProfileSynced?: () => void;
+  onQuizCompleted?: (session: QuizSession, records: WineRecord[]) => void;
 }
 
-export default function BlindQuiz({ onAromaClick, records, onProfileSynced }: BlindQuizProps) {
+export default function BlindQuiz({ onAromaClick, records, onProfileSynced, onQuizCompleted }: BlindQuizProps) {
   const [phase, setPhase] = useState<QuizPhase>("setup");
   const [scopeValue, setScopeValue] = useState("all");
   const [desiredCount, setDesiredCount] = useState(5);
@@ -250,11 +251,12 @@ export default function BlindQuiz({ onAromaClick, records, onProfileSynced }: Bl
     await saveQuizSession(session);
     await syncQuizSessionToProfile(session, records);
     onProfileSynced?.();
+    onQuizCompleted?.(session, records);
 
     setResults(computed);
     setPhase("result");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [questions, startTime, questionEndTimes, questionStartTimes, currentIndex, selectedScope, records, onProfileSynced]);
+  }, [questions, startTime, questionEndTimes, questionStartTimes, currentIndex, selectedScope, records, onProfileSynced, onQuizCompleted]);
 
   const restart = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

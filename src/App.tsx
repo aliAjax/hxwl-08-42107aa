@@ -12,11 +12,14 @@ import RegionDetailView from "./components/RegionDetailView";
 import ExamPanel from "./components/ExamPanel";
 import AdaptiveDashboard from "./components/AdaptiveDashboard";
 import LearningProfilePanel from "./components/LearningProfilePanel";
+import LearningPathPanel from "./components/LearningPathPanel";
 import { aromaKeywords } from "./data/aromaData";
 import { wineComparisons } from "./data/wineData";
 import { useWineRecords } from "./hooks/useWineRecords";
 import { WineRecordInput, WineRecord } from "./data/wineRecordTypes";
 import { matchRegionKey } from "./data/regionStats";
+import { triggerPathRefreshAfterQuiz, triggerPathRefreshAfterImport, triggerPathRefreshAfterRecordsChange } from "./data/learningPathStore";
+import { QuizSession } from "./data/adaptiveReview";
 
 const project = {
   id: "hxwl-08",
@@ -49,9 +52,11 @@ function App() {
   const [dashboardRefreshSignal, setDashboardRefreshSignal] = useState(0);
   const [profileRefreshSignal, setProfileRefreshSignal] = useState(0);
   const [reviewPlanRefreshSignal, setReviewPlanRefreshSignal] = useState(0);
+  const [learningPathRefreshSignal, setLearningPathRefreshSignal] = useState(0);
   const lexiconRef = useRef<HTMLElement>(null);
   const inferenceRef = useRef<HTMLElement>(null);
   const recordsRef = useRef<HTMLElement>(null);
+  const learningPathRef = useRef<HTMLElement>(null);
   const [highlightedRecordId, setHighlightedRecordId] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -67,10 +72,40 @@ function App() {
     setReviewPlanRefreshSignal((s) => s + 1);
   }, []);
 
+  const triggerLearningPathRefresh = useCallback(() => {
+    setLearningPathRefreshSignal((s) => s + 1);
+  }, []);
+
   const handleReviewPlanGenerated = useCallback(() => {
     setReviewPlanRefreshSignal((s) => s + 1);
     setProfileRefreshSignal((s) => s + 1);
   }, []);
+
+  const handleQuizCompletedForPath = useCallback(
+    async (session: QuizSession, records: WineRecord[]) => {
+      try {
+        await triggerPathRefreshAfterQuiz(session, records);
+        setLearningPathRefreshSignal((s) => s + 1);
+        showToast("学习路径已根据测验结果更新", "info");
+      } catch {
+        showToast("学习路径更新失败", "warn");
+      }
+    },
+    [showToast]
+  );
+
+  const handleImportCompletedForPath = useCallback(
+    async (records: WineRecord[]) => {
+      try {
+        await triggerPathRefreshAfterImport(records);
+        setLearningPathRefreshSignal((s) => s + 1);
+        showToast("学习路径已根据导入档案更新", "info");
+      } catch {
+        showToast("学习路径更新失败", "warn");
+      }
+    },
+    [showToast]
+  );
 
   const handleReviewTaskStatusChanged = useCallback(() => {
     setProfileRefreshSignal((s) => s + 1);
@@ -169,11 +204,14 @@ function App() {
           showToast("记录已添加", "info");
         }
         setFormState({ open: false, mode: "add" });
+        const updatedRecords = formState.mode === "edit" ? records : [...records, { ...data, id: "temp" } as WineRecord];
+        await triggerPathRefreshAfterRecordsChange(updatedRecords);
+        setLearningPathRefreshSignal((s) => s + 1);
       } catch {
         showToast(formState.mode === "edit" ? "更新失败" : "添加失败", "warn");
       }
     },
-    [formState.mode, formState.record, addRecord, updateRecord, showToast]
+    [formState.mode, formState.record, addRecord, updateRecord, showToast, records]
   );
 
   const handleDeleteClick = useCallback((id: string) => {
@@ -186,11 +224,14 @@ function App() {
     try {
       await deleteRecord(deleteConfirm);
       showToast("记录已删除", "info");
+      const updatedRecords = records.filter((r) => r.id !== deleteConfirm);
+      await triggerPathRefreshAfterRecordsChange(updatedRecords);
+      setLearningPathRefreshSignal((s) => s + 1);
     } catch {
       showToast("删除失败", "warn");
     }
     setDeleteConfirm(null);
-  }, [deleteConfirm, deleteRecord, showToast]);
+  }, [deleteConfirm, deleteRecord, showToast, records]);
 
   const handleDeleteCancel = useCallback(() => {
     setDeleteConfirm(null);
@@ -399,6 +440,7 @@ function App() {
         onAromaClick={handleAromaClick}
         records={records}
         onProfileSynced={triggerProfileRefresh}
+        onQuizCompleted={handleQuizCompletedForPath}
       />
 
       <section ref={examPanelRef}>
@@ -406,6 +448,7 @@ function App() {
           records={records}
           onAromaClick={handleAromaClick}
           onProfileSynced={triggerProfileRefresh}
+          onQuizCompleted={handleQuizCompletedForPath}
           presetRecordIds={examPreset?.recordIds}
           presetExamName={examPreset?.examName}
           onPresetCleared={handleClearExamPreset}
@@ -643,7 +686,19 @@ function App() {
 
       <WineComparison onAromaClick={handleAromaClick} />
 
-      <LearningProfilePanel records={records} refreshSignal={profileRefreshSignal} />
+      <LearningProfilePanel
+        records={records}
+        refreshSignal={profileRefreshSignal}
+        onImportCompleted={handleImportCompletedForPath}
+      />
+
+      <section ref={learningPathRef}>
+        <LearningPathPanel
+          records={records}
+          refreshSignal={learningPathRefreshSignal}
+          onAromaClick={handleAromaClick}
+        />
+      </section>
 
       {formState.open && (
         <WineRecordForm

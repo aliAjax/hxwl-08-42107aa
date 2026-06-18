@@ -21,6 +21,7 @@ import { WineRecord } from "../data/wineRecordTypes";
 interface LearningProfilePanelProps {
   records?: WineRecord[];
   refreshSignal?: number;
+  onImportCompleted?: (records: WineRecord[]) => void;
 }
 
 interface ProfileStats {
@@ -47,7 +48,7 @@ function formatTimeRelative(ts: number): string {
   return `${days}天前`;
 }
 
-export default function LearningProfilePanel({ records = [], refreshSignal = 0 }: LearningProfilePanelProps) {
+export default function LearningProfilePanel({ records = [], refreshSignal = 0, onImportCompleted }: LearningProfilePanelProps) {
   const [stats, setStats] = useState<ProfileStats>({
     blindCount: 0,
     quizCount: 0,
@@ -188,12 +189,13 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
       setImportSummary(summary);
       setImportPreview(null);
       await refreshData();
+      onImportCompleted?.(records);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "导入失败");
     } finally {
       setImporting(false);
     }
-  }, [importPreview, refreshData]);
+  }, [importPreview, refreshData, onImportCompleted, records]);
 
   const handleCancelPreview = useCallback(() => {
     setImportPreview(null);

@@ -70,6 +70,7 @@ interface ExamPanelProps {
   records: WineRecord[];
   onAromaClick?: (aroma: string) => void;
   onProfileSynced?: () => void;
+  onQuizCompleted?: (session: QuizSession, records: WineRecord[]) => void;
   presetRecordIds?: string[];
   presetExamName?: string;
   onPresetCleared?: () => void;
@@ -86,6 +87,7 @@ export default function ExamPanel({
   records,
   onAromaClick,
   onProfileSynced,
+  onQuizCompleted,
   presetRecordIds,
   presetExamName,
   onPresetCleared,
@@ -328,12 +330,13 @@ export default function ExamPanel({
       await saveQuizSession(session);
       await syncQuizSessionToProfile(session, records);
       onProfileSynced?.();
+      onQuizCompleted?.(session, records);
 
       setResults(computed);
       setPhase("result");
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName, records, onProfileSynced]
+    [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName, records, onProfileSynced, onQuizCompleted]
   );
 
   const getPickedRecords = useCallback(async (): Promise<WineRecord[]> => {
