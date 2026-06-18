@@ -651,6 +651,10 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
                     测验 {snapshot.quizResults.length} ·
                     复习 {snapshot.reviewPlans.length} ·
                     混淆 {snapshot.confusionItems.length}
+                    {snapshot.quizSessions && snapshot.quizSessions.length > 0 && ` · 会话 ${snapshot.quizSessions.length}`}
+                    {snapshot.wineRecords && snapshot.wineRecords.length > 0 && ` · 酒款 ${snapshot.wineRecords.length}`}
+                    {snapshot.adaptiveTasks && snapshot.adaptiveTasks.length > 0 && ` · 自适应 ${snapshot.adaptiveTasks.length}`}
+                    {snapshot.reviewStatus && snapshot.reviewStatus.length > 0 && ` · 状态 ${snapshot.reviewStatus.length}`}
                   </span>
                 </div>
                 <div className="rollback-actions">

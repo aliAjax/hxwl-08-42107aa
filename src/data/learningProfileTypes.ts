@@ -71,6 +71,14 @@ export interface ImportSummary {
   confusionItemsImported: number;
   confusionItemsDuplicates: number;
   confusionItemsInvalid: number;
+  quizSessionsImported?: number;
+  quizSessionsDuplicates?: number;
+  quizSessionsInvalid?: number;
+  wineRecordsImported?: number;
+  wineRecordsDuplicates?: number;
+  wineRecordsInvalid?: number;
+  adaptiveTasksImported?: number;
+  reviewStatusImported?: number;
   migratedFields: string[];
   rollbackAvailable: boolean;
   duplicateMode: ImportMode;
@@ -83,6 +91,10 @@ export interface RollbackSnapshot {
   quizResults: QuizResultRecord[];
   reviewPlans: ReviewPlanRecord[];
   confusionItems: ConfusionItem[];
+  quizSessions?: unknown[];
+  adaptiveTasks?: unknown[];
+  reviewStatus?: unknown[];
+  wineRecords?: unknown[];
 }
 
 export type ImportMode = "skip" | "overwrite" | "merge";
@@ -108,5 +120,9 @@ export interface ImportPreview {
   quizResults: RecordCategoryPreview<QuizResultRecord>;
   reviewPlans: RecordCategoryPreview<ReviewPlanRecord>;
   confusionItems: RecordCategoryPreview<ConfusionItem>;
+  quizSessions?: RecordCategoryPreview<unknown>;
+  wineRecords?: RecordCategoryPreview<unknown>;
+  adaptiveTasks?: { totalInFile: number; toImport: boolean; validatedBundles?: unknown[] };
+  reviewStatus?: { totalInFile: number; toImport: boolean; validatedEntries?: unknown[] };
   migratedFields: string[];
 }

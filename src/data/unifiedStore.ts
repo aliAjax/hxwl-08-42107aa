@@ -478,6 +478,37 @@ async function migrateFromLegacyIfNeeded(): Promise<MigrationResult> {
         if (newSessions.length > 0) {
           await putToStore(STORES.quizSessions, newSessions);
           result.quizSessionsMigrated = newSessions.length;
+
+          const newQuizResults: QuizResultRecord[] = [];
+          const newBlindTastings: BlindTastingRecord[] = [];
+          for (const session of newSessions) {
+            try {
+              const quizResult = quizSessionToQuizResult(session);
+              newQuizResults.push(quizResult);
+              for (const attempt of session.attempts) {
+                try {
+                  const wineName = attempt.questionId || attempt.userRegionAnswer + " / " + attempt.userGrapeAnswer;
+                  const bt = quizAttemptToBlindTastingRecord(
+                    attempt,
+                    session.id,
+                    wineName,
+                    []
+                  );
+                  newBlindTastings.push(bt);
+                } catch {
+                }
+              }
+            } catch {
+            }
+          }
+          if (newQuizResults.length > 0) {
+            await dedupAndPut(STORES.quizResults, newQuizResults, (r) => r.id, semanticKeyQuizResult);
+            result.quizResultsMigrated = newQuizResults.length;
+          }
+          if (newBlindTastings.length > 0) {
+            await dedupAndPut(STORES.blindTastings, newBlindTastings, (r) => r.id, semanticKeyBlindTasting);
+            result.blindTastingsMigrated = newBlindTastings.length;
+          }
         }
       }
     }
@@ -815,6 +846,11 @@ export async function seedWineRecordsIfEmpty(): Promise<WineRecord[]> {
   return seedLock;
 }
 
+export interface ReviewStatusEntry {
+  taskId: string;
+  completed: boolean;
+}
+
 export interface AdaptiveTaskBundle {
   generatedAt: number;
   dateKey: string;
@@ -866,13 +902,25 @@ export async function setReviewStatus(
 }
 
 export async function takeSnapshot(): Promise<RollbackSnapshot> {
-  const [blindTastingRecords, quizResults, reviewPlans, confusionItems] =
-    await Promise.all([
-      getAllBlindTastings(),
-      getAllQuizResults(),
-      getAllReviewPlans(),
-      getAllConfusionItems(),
-    ]);
+  const [
+    blindTastingRecords,
+    quizResults,
+    reviewPlans,
+    confusionItems,
+    quizSessions,
+    adaptiveTasks,
+    reviewStatus,
+    wineRecords,
+  ] = await Promise.all([
+    getAllBlindTastings(),
+    getAllQuizResults(),
+    getAllReviewPlans(),
+    getAllConfusionItems(),
+    getAllQuizSessions(),
+    getAllFromStore<AdaptiveTaskBundle>(STORES.adaptiveTasks),
+    getAllFromStore<ReviewStatusEntry>(STORES.reviewStatus),
+    getAllWineRecords(),
+  ]);
 
   const snapshot: RollbackSnapshot = {
     id: generateId(),
@@ -881,6 +929,10 @@ export async function takeSnapshot(): Promise<RollbackSnapshot> {
     quizResults,
     reviewPlans,
     confusionItems,
+    quizSessions,
+    adaptiveTasks,
+    reviewStatus,
+    wineRecords,
   };
 
   await putSingleToStore(STORES.rollbackSnapshots, snapshot);
@@ -904,6 +956,9 @@ export async function executeRollback(snapshotId: string): Promise<void> {
     STORES.quizResults,
     STORES.reviewPlans,
     STORES.confusionItems,
+    STORES.quizSessions,
+    STORES.adaptiveTasks,
+    STORES.reviewStatus,
   ]);
 
   if (snapshot.blindTastingRecords.length > 0)
@@ -914,6 +969,12 @@ export async function executeRollback(snapshotId: string): Promise<void> {
     await putToStore(STORES.reviewPlans, snapshot.reviewPlans);
   if (snapshot.confusionItems.length > 0)
     await putToStore(STORES.confusionItems, snapshot.confusionItems);
+  if (snapshot.quizSessions && snapshot.quizSessions.length > 0)
+    await putToStore(STORES.quizSessions, snapshot.quizSessions as QuizSession[]);
+  if (snapshot.adaptiveTasks && snapshot.adaptiveTasks.length > 0)
+    await putToStore(STORES.adaptiveTasks, snapshot.adaptiveTasks as AdaptiveTaskBundle[]);
+  if (snapshot.reviewStatus && snapshot.reviewStatus.length > 0)
+    await putToStore(STORES.reviewStatus, snapshot.reviewStatus as ReviewStatusEntry[]);
 }
 
 export async function deleteSnapshot(snapshotId: string): Promise<void> {
@@ -1105,6 +1166,51 @@ function isValidWineRecord(raw: unknown): raw is WineRecord {
   );
 }
 
+function isValidQuizSession(raw: unknown): raw is QuizSession {
+  if (typeof raw !== "object" || raw === null) return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r.id === "string" &&
+    typeof r.sessionName === "string" &&
+    typeof r.startTime === "number" &&
+    typeof r.endTime === "number" &&
+    typeof r.overallAccuracy === "number" &&
+    Array.isArray(r.attempts)
+  );
+}
+
+function isValidAdaptiveTaskBundle(raw: unknown): raw is AdaptiveTaskBundle {
+  if (typeof raw !== "object" || raw === null) return false;
+  const r = raw as Record<string, unknown>;
+  return (
+    typeof r.generatedAt === "number" &&
+    typeof r.dateKey === "string" &&
+    Array.isArray(r.tasks)
+  );
+}
+
+function isValidReviewStatusEntry(raw: unknown): raw is ReviewStatusEntry {
+  if (typeof raw !== "object" || raw === null) return false;
+  const r = raw as Record<string, unknown>;
+  return typeof r.taskId === "string" && typeof r.completed === "boolean";
+}
+
+function migrateQuizSession(raw: Record<string, unknown>): QuizSession {
+  if (raw.id === undefined || raw.id === null) raw.id = generateId();
+  if (raw.sessionName === undefined || raw.sessionName === null)
+    raw.sessionName = "未命名测验";
+  if (raw.startTime === undefined || raw.startTime === null)
+    raw.startTime = Date.now();
+  if (raw.endTime === undefined || raw.endTime === null)
+    raw.endTime = Date.now();
+  if (raw.totalDurationMs === undefined || raw.totalDurationMs === null)
+    raw.totalDurationMs = 0;
+  if (!Array.isArray(raw.attempts)) raw.attempts = [];
+  if (raw.overallAccuracy === undefined || raw.overallAccuracy === null)
+    raw.overallAccuracy = 0;
+  return raw as unknown as QuizSession;
+}
+
 function migrateBlindTastingRecord(
   raw: Record<string, unknown>
 ): BlindTastingRecord {
@@ -1203,6 +1309,9 @@ export interface UnifiedExportData {
   confusionItems: ConfusionItem[];
   quizSessions: QuizSession[];
   wineRecords: WineRecord[];
+  adaptiveTasks: AdaptiveTaskBundle[];
+  reviewStatus: ReviewStatusEntry[];
+  rollbackSnapshots: RollbackSnapshot[];
 }
 
 export async function exportAllData(): Promise<string> {
@@ -1213,6 +1322,9 @@ export async function exportAllData(): Promise<string> {
     confusionItems,
     quizSessions,
     wineRecords,
+    adaptiveTasks,
+    reviewStatus,
+    rollbackSnapshots,
   ] = await Promise.all([
     getAllBlindTastings(),
     getAllQuizResults(),
@@ -1220,6 +1332,9 @@ export async function exportAllData(): Promise<string> {
     getAllConfusionItems(),
     getAllQuizSessions(),
     getAllWineRecords(),
+    getAllFromStore<AdaptiveTaskBundle>(STORES.adaptiveTasks),
+    getAllFromStore<ReviewStatusEntry>(STORES.reviewStatus),
+    getAllFromStore<RollbackSnapshot>(STORES.rollbackSnapshots),
   ]);
 
   const data: UnifiedExportData = {
@@ -1232,6 +1347,9 @@ export async function exportAllData(): Promise<string> {
     confusionItems,
     quizSessions,
     wineRecords,
+    adaptiveTasks,
+    reviewStatus,
+    rollbackSnapshots,
   };
 
   return JSON.stringify(data, null, 2);
@@ -1284,6 +1402,10 @@ export async function parseImportPreview(
   const rawConfusion = Array.isArray(data.confusionItems)
     ? data.confusionItems
     : [];
+  const rawSessions = Array.isArray(data.quizSessions) ? data.quizSessions : [];
+  const rawWines = Array.isArray(data.wineRecords) ? data.wineRecords : [];
+  const rawAdaptive = Array.isArray(data.adaptiveTasks) ? data.adaptiveTasks : [];
+  const rawReviewStatus = Array.isArray(data.reviewStatus) ? data.reviewStatus : [];
 
   const allMigratedFields: string[] = [];
 
@@ -1351,13 +1473,65 @@ export async function parseImportPreview(
     }
   }
 
-  const [existingBlind, existingQuiz, existingReview, existingConfusion] =
-    await Promise.all([
-      getAllBlindTastings(),
-      getAllQuizResults(),
-      getAllReviewPlans(),
-      getAllConfusionItems(),
-    ]);
+  const validatedSessions: QuizSession[] = [];
+  const sessionsInvalidRecords: unknown[] = [];
+  for (const raw of rawSessions) {
+    if (isValidQuizSession(raw)) {
+      const migrated = migrateQuizSession(
+        raw as unknown as Record<string, unknown>
+      );
+      validatedSessions.push(migrated);
+      if (raw.id === undefined || raw.id === null) allMigratedFields.push("id");
+    } else {
+      sessionsInvalidRecords.push(raw);
+    }
+  }
+
+  const validatedWines: WineRecord[] = [];
+  const winesInvalidRecords: unknown[] = [];
+  for (const raw of rawWines) {
+    if (isValidWineRecord(raw)) {
+      const migrated = migrateWineRecord(
+        raw as unknown as Record<string, unknown>
+      );
+      validatedWines.push(migrated);
+      if (raw.id === undefined || raw.id === null) allMigratedFields.push("id");
+      if (raw.createdAt === undefined || raw.createdAt === null)
+        allMigratedFields.push("createdAt");
+    } else {
+      winesInvalidRecords.push(raw);
+    }
+  }
+
+  const validatedAdaptive: AdaptiveTaskBundle[] = [];
+  for (const raw of rawAdaptive) {
+    if (isValidAdaptiveTaskBundle(raw)) {
+      validatedAdaptive.push(raw);
+    }
+  }
+
+  const validatedReviewStatus: ReviewStatusEntry[] = [];
+  for (const raw of rawReviewStatus) {
+    if (isValidReviewStatusEntry(raw)) {
+      validatedReviewStatus.push(raw);
+    }
+  }
+
+  const [
+    existingBlind,
+    existingQuiz,
+    existingReview,
+    existingConfusion,
+    existingSessions,
+    existingWines,
+  ] = await Promise.all([
+    getAllBlindTastings(),
+    getAllQuizResults(),
+    getAllReviewPlans(),
+    getAllConfusionItems(),
+    getAllQuizSessions(),
+    getAllWineRecords(),
+  ]);
 
   const blindResult = deduplicateById(validatedBlind, existingBlind, duplicateMode);
   const quizResult = deduplicateById(validatedQuiz, existingQuiz, duplicateMode);
@@ -1369,6 +1543,16 @@ export async function parseImportPreview(
   const confusionResult = deduplicateById(
     validatedConfusion,
     existingConfusion,
+    duplicateMode
+  );
+  const sessionsResult = deduplicateById(
+    validatedSessions,
+    existingSessions,
+    duplicateMode
+  );
+  const winesResult = deduplicateById(
+    validatedWines,
+    existingWines,
     duplicateMode
   );
 
@@ -1410,14 +1594,43 @@ export async function parseImportPreview(
     invalidRecords: confusionInvalidRecords,
   };
 
+  const sessionsPreview: RecordCategoryPreview<unknown> = {
+    totalInFile: rawSessions.length,
+    toAdd: sessionsResult.toAdd,
+    duplicateIds: sessionsResult.duplicateIds,
+    duplicateRecords: sessionsResult.duplicateRecords,
+    invalidCount: sessionsInvalidRecords.length,
+    invalidRecords: sessionsInvalidRecords,
+  };
+
+  const winesPreview: RecordCategoryPreview<unknown> = {
+    totalInFile: rawWines.length,
+    toAdd: winesResult.toAdd,
+    duplicateIds: winesResult.duplicateIds,
+    duplicateRecords: winesResult.duplicateRecords,
+    invalidCount: winesInvalidRecords.length,
+    invalidRecords: winesInvalidRecords,
+  };
+
   return {
     duplicateMode,
     totalRecordsInFile:
-      rawBlind.length + rawQuiz.length + rawReview.length + rawConfusion.length,
+      rawBlind.length +
+      rawQuiz.length +
+      rawReview.length +
+      rawConfusion.length +
+      rawSessions.length +
+      rawWines.length +
+      rawAdaptive.length +
+      rawReviewStatus.length,
     blindTasting: blindPreview,
     quizResults: quizPreview,
     reviewPlans: reviewPreview,
     confusionItems: confusionPreview,
+    quizSessions: sessionsPreview,
+    wineRecords: winesPreview,
+    adaptiveTasks: { totalInFile: rawAdaptive.length, toImport: validatedAdaptive.length > 0, validatedBundles: validatedAdaptive },
+    reviewStatus: { totalInFile: rawReviewStatus.length, toImport: validatedReviewStatus.length > 0, validatedEntries: validatedReviewStatus },
     migratedFields: uniqueMigratedFields,
   };
 }
@@ -1435,6 +1648,16 @@ export async function applyImportPreview(
     await putToStore(STORES.reviewPlans, preview.reviewPlans.toAdd);
   if (preview.confusionItems.toAdd.length > 0)
     await putToStore(STORES.confusionItems, preview.confusionItems.toAdd);
+  if (preview.quizSessions && preview.quizSessions.toAdd.length > 0)
+    await putToStore(STORES.quizSessions, preview.quizSessions.toAdd as QuizSession[]);
+  if (preview.wineRecords && preview.wineRecords.toAdd.length > 0)
+    await putToStore(STORES.wineRecords, preview.wineRecords.toAdd as WineRecord[]);
+  if (preview.adaptiveTasks && preview.adaptiveTasks.toImport && preview.adaptiveTasks.validatedBundles) {
+    await putToStore(STORES.adaptiveTasks, preview.adaptiveTasks.validatedBundles as AdaptiveTaskBundle[]);
+  }
+  if (preview.reviewStatus && preview.reviewStatus.toImport && preview.reviewStatus.validatedEntries) {
+    await putToStore(STORES.reviewStatus, preview.reviewStatus.validatedEntries as ReviewStatusEntry[]);
+  }
 
   return {
     totalRecordsInFile: preview.totalRecordsInFile,
@@ -1450,6 +1673,14 @@ export async function applyImportPreview(
     confusionItemsImported: preview.confusionItems.toAdd.length,
     confusionItemsDuplicates: preview.confusionItems.duplicateIds.length,
     confusionItemsInvalid: preview.confusionItems.invalidCount,
+    quizSessionsImported: preview.quizSessions?.toAdd.length ?? 0,
+    quizSessionsDuplicates: preview.quizSessions?.duplicateIds.length ?? 0,
+    quizSessionsInvalid: preview.quizSessions?.invalidCount ?? 0,
+    wineRecordsImported: preview.wineRecords?.toAdd.length ?? 0,
+    wineRecordsDuplicates: preview.wineRecords?.duplicateIds.length ?? 0,
+    wineRecordsInvalid: preview.wineRecords?.invalidCount ?? 0,
+    adaptiveTasksImported: preview.adaptiveTasks?.totalInFile ?? 0,
+    reviewStatusImported: preview.reviewStatus?.totalInFile ?? 0,
     migratedFields: preview.migratedFields,
     rollbackAvailable: true,
     duplicateMode: preview.duplicateMode,
@@ -1536,6 +1767,44 @@ export function formatImportSummary(summary: ImportSummary): string {
     lines.push(`混淆项：${parts.join("，")}`);
   }
 
+  if (
+    (summary.quizSessionsImported ?? 0) > 0 ||
+    (summary.quizSessionsDuplicates ?? 0) > 0 ||
+    (summary.quizSessionsInvalid ?? 0) > 0
+  ) {
+    const parts: string[] = [];
+    if (summary.quizSessionsImported && summary.quizSessionsImported > 0)
+      parts.push(`${summary.quizSessionsImported} 条导入`);
+    if (summary.quizSessionsDuplicates && summary.quizSessionsDuplicates > 0)
+      parts.push(`${summary.quizSessionsDuplicates} 条${dupLabel}`);
+    if (summary.quizSessionsInvalid && summary.quizSessionsInvalid > 0)
+      parts.push(`${summary.quizSessionsInvalid} 条无效`);
+    lines.push(`测验会话：${parts.join("，")}`);
+  }
+
+  if (
+    (summary.wineRecordsImported ?? 0) > 0 ||
+    (summary.wineRecordsDuplicates ?? 0) > 0 ||
+    (summary.wineRecordsInvalid ?? 0) > 0
+  ) {
+    const parts: string[] = [];
+    if (summary.wineRecordsImported && summary.wineRecordsImported > 0)
+      parts.push(`${summary.wineRecordsImported} 条导入`);
+    if (summary.wineRecordsDuplicates && summary.wineRecordsDuplicates > 0)
+      parts.push(`${summary.wineRecordsDuplicates} 条${dupLabel}`);
+    if (summary.wineRecordsInvalid && summary.wineRecordsInvalid > 0)
+      parts.push(`${summary.wineRecordsInvalid} 条无效`);
+    lines.push(`酒款记录：${parts.join("，")}`);
+  }
+
+  if ((summary.adaptiveTasksImported ?? 0) > 0) {
+    lines.push(`自适应任务：${summary.adaptiveTasksImported} 条导入`);
+  }
+
+  if ((summary.reviewStatusImported ?? 0) > 0) {
+    lines.push(`复习状态：${summary.reviewStatusImported} 条导入`);
+  }
+
   if (summary.migratedFields.length > 0) {
     lines.push("");
     lines.push(`自动补全字段：${summary.migratedFields.join("、")}`);
@@ -1582,52 +1851,5 @@ export async function importFullData(
   jsonString: string,
   duplicateMode: ImportMode = "merge"
 ): Promise<ImportSummary & { quizSessionsImported?: number; wineRecordsImported?: number }> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonString);
-  } catch {
-    throw new Error("无效的 JSON 格式");
-  }
-  if (typeof parsed !== "object" || parsed === null) {
-    throw new Error("文件内容不是有效的数据对象");
-  }
-
-  const data = parsed as Record<string, unknown>;
-
-  const baseSummary = await importData(jsonString, duplicateMode);
-
-  let quizSessionsImported = 0;
-  let wineRecordsImported = 0;
-
-  if (Array.isArray(data.quizSessions)) {
-    const sessions = data.quizSessions as QuizSession[];
-    const existing = await getAllQuizSessions();
-    const existingIds = new Set(existing.map((s) => s.id));
-    const newSessions = sessions.filter((s) => !existingIds.has(s.id));
-    if (newSessions.length > 0) {
-      await putToStore(STORES.quizSessions, newSessions);
-      quizSessionsImported = newSessions.length;
-    }
-  }
-
-  if (Array.isArray(data.wineRecords)) {
-    const rawWines = data.wineRecords;
-    const validWines: WineRecord[] = [];
-    for (const raw of rawWines) {
-      if (isValidWineRecord(raw)) {
-        validWines.push(migrateWineRecord(raw as unknown as Record<string, unknown>));
-      }
-    }
-    if (validWines.length > 0) {
-      const existingWines = await getAllWineRecords();
-      const existingIds = new Set(existingWines.map((w) => w.id));
-      const toImport = validWines.filter((w) => !existingIds.has(w.id));
-      if (toImport.length > 0) {
-        await putToStore(STORES.wineRecords, toImport);
-        wineRecordsImported = toImport.length;
-      }
-    }
-  }
-
-  return { ...baseSummary, quizSessionsImported, wineRecordsImported };
+  return importData(jsonString, duplicateMode);
 }
