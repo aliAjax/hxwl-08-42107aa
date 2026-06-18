@@ -51,6 +51,8 @@ function App() {
   const [reviewPlanRefreshSignal, setReviewPlanRefreshSignal] = useState(0);
   const lexiconRef = useRef<HTMLElement>(null);
   const inferenceRef = useRef<HTMLElement>(null);
+  const recordsRef = useRef<HTMLElement>(null);
+  const [highlightedRecordId, setHighlightedRecordId] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const triggerDashboardRefresh = useCallback(() => {
@@ -122,6 +124,26 @@ function App() {
   const handleAromaViewed = useCallback(() => {
     setSelectedAroma(null);
   }, []);
+
+  const handleViewRecord = useCallback((recordId: string, recordName: string) => {
+    setHighlightedRecordId(recordId);
+    setSearchQuery("");
+    setFilterCountry("");
+    setFilterRegion("");
+    setFilterGrape("");
+    setFilterAroma("");
+    recordsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => {
+      const el = document.getElementById(`record-${recordId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 300);
+    showToast(`已定位到记录「${recordName}」`, "info");
+    setTimeout(() => {
+      setHighlightedRecordId(null);
+    }, 4000);
+  }, [showToast]);
 
   const handleOpenAddForm = useCallback(() => {
     setFormState({ open: true, mode: "add" });
@@ -417,6 +439,7 @@ function App() {
         ref={inferenceRef}
         wineRecords={records}
         onAromaClick={handleAromaClick}
+        onViewRecord={handleViewRecord}
       />
 
       <AromaLexicon
@@ -425,7 +448,7 @@ function App() {
         onAromaViewed={handleAromaViewed}
       />
 
-      <section className="records panel">
+      <section className="records panel" ref={recordsRef}>
         <div className="section-heading">
           <div>
             <p>本地数据</p>
@@ -555,8 +578,14 @@ function App() {
         )}
 
         <div className="record-list">
-          {filteredRecords.map((record: WineRecord, index: number) => (
-            <article key={record.id} className="record-card">
+          {filteredRecords.map((record: WineRecord, index: number) => {
+            const isHighlighted = highlightedRecordId === record.id;
+            return (
+              <article
+                key={record.id}
+                className={`record-card ${isHighlighted ? "record-card-highlighted" : ""}`}
+                id={`record-${record.id}`}
+              >
               <div className="record-index">{String(index + 1).padStart(2, "0")}</div>
               <div className="record-card-header">
                 <div className="record-card-main">
@@ -605,7 +634,8 @@ function App() {
                 </div>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
 

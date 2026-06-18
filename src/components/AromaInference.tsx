@@ -45,6 +45,7 @@ interface AromaInferenceProps {
   wineRecords: WineRecord[];
   onAromaClick: (aroma: string) => void;
   onViewAromaDetail?: (keyword: AromaKeyword) => void;
+  onViewRecord?: (recordId: string, recordName: string) => void;
 }
 
 function inferFromAromas(selectedAromas: string[], wineRecords: WineRecord[]): InferenceResult {
@@ -116,7 +117,7 @@ function inferFromAromas(selectedAromas: string[], wineRecords: WineRecord[]): I
 }
 
 const AromaInference = forwardRef<HTMLElement, AromaInferenceProps>(
-  function AromaInference({ wineRecords, onAromaClick, onViewAromaDetail }, ref) {
+  function AromaInference({ wineRecords, onAromaClick, onViewAromaDetail, onViewRecord }, ref) {
     const [activeCategory, setActiveCategory] = useState<AromaCategory>("水果");
     const [selectedAromas, setSelectedAromas] = useState<string[]>([]);
     const [detailKeyword, setDetailKeyword] = useState<AromaKeyword | null>(null);
@@ -434,7 +435,7 @@ const AromaInference = forwardRef<HTMLElement, AromaInferenceProps>(
                 </div>
                 <div className="result-list">
                   {result.wineRecords.map((wr) => (
-                    <div key={wr.record.id} className="result-item wine-match-item">
+                    <div key={wr.record.id} className="result-item wine-match-item record-match-item">
                       <div className="result-item-main">
                         <div className="result-item-title-row">
                           <span className="result-item-name">
@@ -482,6 +483,20 @@ const AromaInference = forwardRef<HTMLElement, AromaInferenceProps>(
                             );
                           })}
                         </div>
+                        {onViewRecord && (
+                          <div className="record-match-actions">
+                            <button
+                              className="view-record-btn"
+                              onClick={() =>
+                                onViewRecord(wr.record.id, wr.record.name)
+                              }
+                            >
+                              <span>📄</span>
+                              <span>查看完整记录</span>
+                              <span className="view-record-arrow">→</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
