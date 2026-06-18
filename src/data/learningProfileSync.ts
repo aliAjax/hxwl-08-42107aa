@@ -1,28 +1,19 @@
-import { QuizSession, getAllSessions, ConfusionPair, QuizAttemptDetail, computeConfusionPairs } from "./adaptiveReview";
+import { QuizSession, ConfusionPair, computeConfusionPairs } from "./adaptiveReview";
 import { wineCards } from "./wineData";
 import { WineRecord } from "./wineRecordTypes";
 import {
-  putBlindTastingRecords,
-  putQuizResults,
-  putReviewPlans,
-  putConfusionItems,
-  getAllBlindTastingRecords,
+  syncQuizSessionToStore as unifiedSyncQuizSession,
+  syncConfusionPairsToStore as unifiedSyncConfusion,
+  syncReviewTasksToStore as unifiedSyncReview,
+  getAllBlindTastings,
   getAllQuizResults,
   getAllReviewPlans,
   getAllConfusionItems,
-} from "./learningProfileDB";
-import {
-  quizSessionToQuizResult,
-  quizAttemptToBlindTastingRecord,
-  confusionPairToConfusionItem,
-  reviewTaskToReviewPlanRecord,
-} from "./learningProfileAdapters";
-import {
-  BlindTastingRecord,
-  QuizResultRecord,
-  ReviewPlanRecord,
-  ConfusionItem,
-} from "./learningProfileTypes";
+  getAllQuizSessions,
+  hasMigratedProfile,
+  migrateExistingDataToStore,
+  MigrationResult,
+} from "./unifiedStore";
 
 const WINE_NAME_MAP = new Map<string, { name: string; aromas: string[] }>();
 
@@ -47,25 +38,7 @@ export async function syncQuizSessionToProfile(
   records: WineRecord[] = []
 ): Promise<void> {
   try {
-    const quizResult = quizSessionToQuizResult(session);
-    await putQuizResults([quizResult]);
-
-    const blindRecords: BlindTastingRecord[] = [];
-    for (const attempt of session.attempts) {
-      const wineInfo = getWineInfo(attempt.questionId, records);
-      const record = quizAttemptToBlindTastingRecord(
-        attempt,
-        session.id,
-        wineInfo.name,
-        wineInfo.aromas
-      );
-      record.createdAt = session.endTime;
-      blindRecords.push(record);
-    }
-
-    if (blindRecords.length > 0) {
-      await putBlindTastingRecords(blindRecords);
-    }
+    await unifiedSyncQuizSession(session, records);
   } catch (err) {
     console.warn("Failed to sync quiz session to learning profile:", err);
   }
@@ -75,29 +48,15 @@ export async function syncAllSessionsToProfile(): Promise<{
   sessionsSynced: number;
   blindRecordsSynced: number;
 }> {
-  const sessions = getAllSessions();
+  const sessions = await getAllQuizSessions();
   let blindCount = 0;
 
   for (const session of sessions) {
-    const quizResult = quizSessionToQuizResult(session);
-    await putQuizResults([quizResult]);
-
-    const blindRecords: BlindTastingRecord[] = [];
-    for (const attempt of session.attempts) {
-      const wineInfo = getWineInfo(attempt.questionId);
-      const record = quizAttemptToBlindTastingRecord(
-        attempt,
-        session.id,
-        wineInfo.name,
-        wineInfo.aromas
-      );
-      record.createdAt = session.endTime;
-      blindRecords.push(record);
-    }
-
-    if (blindRecords.length > 0) {
-      await putBlindTastingRecords(blindRecords);
-      blindCount += blindRecords.length;
+    try {
+      await unifiedSyncQuizSession(session);
+      blindCount += session.attempts.length;
+    } catch (err) {
+      console.warn("Failed to sync session:", session.id, err);
     }
   }
 
@@ -106,9 +65,7 @@ export async function syncAllSessionsToProfile(): Promise<{
 
 export async function syncConfusionPairsToProfile(pairs: ConfusionPair[]): Promise<number> {
   try {
-    const items = pairs.map((p) => confusionPairToConfusionItem(p));
-    await putConfusionItems(items);
-    return items.length;
+    return await unifiedSyncConfusion(pairs);
   } catch (err) {
     console.warn("Failed to sync confusion pairs:", err);
     return 0;
@@ -128,9 +85,7 @@ interface ReviewTaskInput {
 
 export async function syncReviewTasksToProfile(tasks: ReviewTaskInput[]): Promise<number> {
   try {
-    const records = tasks.map((t) => reviewTaskToReviewPlanRecord(t));
-    await putReviewPlans(records);
-    return records.length;
+    return await unifiedSyncReview(tasks);
   } catch (err) {
     console.warn("Failed to sync review tasks:", err);
     return 0;
@@ -146,7 +101,7 @@ export interface ProfileSyncResult {
 
 export async function getProfileCounts(): Promise<ProfileSyncResult> {
   const [blind, quiz, review, confusion] = await Promise.all([
-    getAllBlindTastingRecords(),
+    getAllBlindTastings(),
     getAllQuizResults(),
     getAllReviewPlans(),
     getAllConfusionItems(),
@@ -159,76 +114,5 @@ export async function getProfileCounts(): Promise<ProfileSyncResult> {
   };
 }
 
-const MIGRATION_FLAG_KEY = "hxwl-08-profile-migrated";
-
-export function hasMigratedProfile(): boolean {
-  return localStorage.getItem(MIGRATION_FLAG_KEY) === "1";
-}
-
-export function setProfileMigrated(value: boolean = true): void {
-  if (value) {
-    localStorage.setItem(MIGRATION_FLAG_KEY, "1");
-  } else {
-    localStorage.removeItem(MIGRATION_FLAG_KEY);
-  }
-}
-
-export interface MigrationResult {
-  quizResults: number;
-  blindTastingRecords: number;
-  confusionItems: number;
-  fromExisting: boolean;
-}
-
-export async function migrateExistingDataToProfile(
-  records: WineRecord[] = [],
-  force: boolean = false
-): Promise<MigrationResult> {
-  if (!force && hasMigratedProfile()) {
-    return { quizResults: 0, blindTastingRecords: 0, confusionItems: 0, fromExisting: true };
-  }
-
-  const sessions = getAllSessions();
-  let quizCount = 0;
-  let blindCount = 0;
-
-  for (const session of sessions) {
-    const quizResult = quizSessionToQuizResult(session);
-    await putQuizResults([quizResult]);
-    quizCount++;
-
-    const blindRecords: BlindTastingRecord[] = [];
-    for (const attempt of session.attempts) {
-      const wineInfo = getWineInfo(attempt.questionId);
-      const record = quizAttemptToBlindTastingRecord(
-        attempt,
-        session.id,
-        wineInfo.name,
-        wineInfo.aromas
-      );
-      record.createdAt = session.endTime;
-      blindRecords.push(record);
-    }
-
-    if (blindRecords.length > 0) {
-      await putBlindTastingRecords(blindRecords);
-      blindCount += blindRecords.length;
-    }
-  }
-
-  const confusionPairs = computeConfusionPairs(records);
-  const pairsWithCount = confusionPairs.filter((p) => p.mutualConfusionCount > 0);
-  let confusionCount = 0;
-  if (pairsWithCount.length > 0) {
-    confusionCount = await syncConfusionPairsToProfile(pairsWithCount);
-  }
-
-  setProfileMigrated(true);
-
-  return {
-    quizResults: quizCount,
-    blindTastingRecords: blindCount,
-    confusionItems: confusionCount,
-    fromExisting: false,
-  };
-}
+export { hasMigratedProfile, migrateExistingDataToStore } from "./unifiedStore";
+export type { MigrationResult } from "./unifiedStore";

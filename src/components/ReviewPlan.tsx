@@ -107,8 +107,9 @@ export default function ReviewPlan({
   const [adaptiveTasks, setAdaptiveTasks] = useState<AdaptiveReviewTask[]>([]);
   const [adaptiveVersion, setAdaptiveVersion] = useState(0);
 
-  const loadAdaptive = useCallback(() => {
-    setAdaptiveTasks(getAdaptiveReviewTasks());
+  const loadAdaptive = useCallback(async () => {
+    const tasks = await getAdaptiveReviewTasks();
+    setAdaptiveTasks(tasks);
     setAdaptiveVersion((v) => v + 1);
   }, []);
 
@@ -147,8 +148,8 @@ export default function ReviewPlan({
   const toggleTask = useCallback(
     async (taskId: string, isAdaptive: boolean = false) => {
       if (isAdaptive) {
-        toggleAdaptiveTaskCompleted(taskId);
-        loadAdaptive();
+        await toggleAdaptiveTaskCompleted(taskId);
+        await loadAdaptive();
         try {
           await syncAdaptiveTasksToProfile();
         } catch {

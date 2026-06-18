@@ -174,7 +174,7 @@ export default function ExamPanel({
   }, []);
 
   const getSmartPickConfig = useCallback((): SmartPickConfig => {
-    const activeStrategies = Array.from(smartStrategies);
+    const activeStrategies: SmartPickStrategy[] = Array.from(smartStrategies);
     return {
       strategies: activeStrategies,
       regionCoverageRatio: regionCoverageRatio / 100,
@@ -196,12 +196,12 @@ export default function ExamPanel({
 
   const smartPickConfig = useMemo(() => getSmartPickConfig(), [getSmartPickConfig]);
 
-  const generateSmartPreview = useCallback(() => {
+  const generateSmartPreview = useCallback(async () => {
     if (smartStrategies.size === 0 || records.length === 0) {
       setSmartPickPreview(null);
       return;
     }
-    const result = smartPickRecords(records, questionCount, smartPickConfig, aromaKeywords);
+    const result = await smartPickRecords(records, questionCount, smartPickConfig, aromaKeywords);
     setSmartPickPreview(result);
   }, [smartStrategies, records, questionCount, smartPickConfig]);
 
@@ -325,7 +325,7 @@ export default function ExamPanel({
         attempts,
         overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
       };
-      saveQuizSession(session);
+      await saveQuizSession(session);
       await syncQuizSessionToProfile(session, records);
       onProfileSynced?.();
 
@@ -336,12 +336,12 @@ export default function ExamPanel({
     [questions, questionEndTimes, questionStartTimes, currentIndex, startTime, examName, records, onProfileSynced]
   );
 
-  const getPickedRecords = useCallback((): WineRecord[] => {
+  const getPickedRecords = useCallback(async (): Promise<WineRecord[]> => {
     if (examMode === "smart") {
       if (smartPickPreview && smartPickPreview.records.length > 0) {
         return smartPickPreview.records;
       }
-      const result = smartPickRecords(records, questionCount, smartPickConfig, aromaKeywords);
+      const result = await smartPickRecords(records, questionCount, smartPickConfig, aromaKeywords);
       return result.records;
     }
     const selectedRecords = records.filter((r) => selectedRecordIds.has(r.id));
@@ -355,7 +355,7 @@ export default function ExamPanel({
     return manualEffectiveCount;
   }, [examMode, questionCount, availableCount, manualEffectiveCount]);
 
-  const startQuiz = useCallback(() => {
+  const startQuiz = useCallback(async () => {
     if (!examName.trim()) {
       setExamName("未命名测验");
     }
@@ -367,7 +367,7 @@ export default function ExamPanel({
       return;
     }
 
-    const picked = getPickedRecords();
+    const picked = await getPickedRecords();
     if (picked.length === 0) {
       return;
     }

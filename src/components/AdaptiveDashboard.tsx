@@ -80,8 +80,29 @@ export default function AdaptiveDashboard({
   const [toast, setToast] = useState<{ msg: string; tone: "ok" | "info" } | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const dashboard: AdaptiveDashboardData = useMemo(() => {
-    return buildAdaptiveDashboard(records);
+  const [dashboard, setDashboard] = useState<AdaptiveDashboardData>({
+    prioritizedWines: [],
+    confusionPairs: [],
+    overallStats: {
+      totalSessions: 0,
+      totalAttempts: 0,
+      globalAccuracy: 0,
+      avgTimePerQuestionMs: 0,
+      weakGrapes: [],
+      weakRegions: [],
+    },
+  });
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    buildAdaptiveDashboard(records).then((data) => {
+      if (!cancelled) {
+        setDashboard(data);
+        setDashboardLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
   }, [records, rebuildTrigger, onRefreshSignal]);
 
   useEffect(() => {
@@ -139,8 +160,8 @@ export default function AdaptiveDashboard({
     setExpandedId((prev) => (prev === id ? null : id));
   }, []);
 
-  const handleReset = useCallback(() => {
-    clearAllHistory();
+  const handleReset = useCallback(async () => {
+    await clearAllHistory();
     setRebuildTrigger((t) => t + 1);
     setConfirmReset(false);
   }, []);

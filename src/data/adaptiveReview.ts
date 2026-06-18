@@ -2,10 +2,18 @@ import { WineCard, wineCards, wineComparisons, WineComparison } from "./wineData
 import { WineRecord } from "./wineRecordTypes";
 import { matchRegionKey, REGION_GROUPS } from "./regionStats";
 import { syncReviewTasksToProfile } from "./learningProfileSync";
+import {
+  saveQuizSession as unifiedSaveQuizSession,
+  getAllQuizSessions as unifiedGetAllQuizSessions,
+  clearQuizSessions as unifiedClearQuizSessions,
+  saveAdaptiveTaskBundle as unifiedSaveTaskBundle,
+  loadAdaptiveTaskBundle as unifiedLoadTaskBundle,
+  clearAdaptiveTaskBundles as unifiedClearTaskBundles,
+  resetPracticeHistory as unifiedResetPractice,
+  AdaptiveTaskBundle,
+} from "./unifiedStore";
 
-const HISTORY_STORAGE_KEY = "hxwl-08-quiz-history";
 const SEED_HISTORY_FLAG = "hxwl-08-history-seeded";
-const ADAPTIVE_REVIEW_TASKS_KEY = "hxwl-08-adaptive-review-tasks";
 
 export type QuizSource = "wineCard" | "wineRecord";
 export type MistakeType = "region" | "grape" | "both" | "none";
@@ -117,33 +125,27 @@ function getWeightLevel(weight: number, maxWeight: number): "high" | "medium" | 
   return "low";
 }
 
-function loadRawHistory(): QuizSession[] {
+export function saveQuizSessionSync(session: QuizSession): void {
+  unifiedSaveQuizSession(session).catch(() => {});
+}
+
+export async function saveQuizSession(session: QuizSession): Promise<void> {
+  await unifiedSaveQuizSession(session);
+}
+
+export async function getAllSessions(): Promise<QuizSession[]> {
+  return unifiedGetAllQuizSessions();
+}
+
+function _loadRawHistoryFromLS(): QuizSession[] {
   try {
-    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    const raw = localStorage.getItem("hxwl-08-quiz-history");
     if (!raw) return [];
     const parsed = JSON.parse(raw) as QuizSession[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
-}
-
-function saveRawHistory(sessions: QuizSession[]): void {
-  try {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(sessions));
-  } catch {
-    // ignore storage errors
-  }
-}
-
-export function saveQuizSession(session: QuizSession): void {
-  const all = loadRawHistory();
-  all.push(session);
-  saveRawHistory(all);
-}
-
-export function getAllSessions(): QuizSession[] {
-  return loadRawHistory();
 }
 
 function mergeCardAndRecordSources(records: WineRecord[]): Map<
@@ -187,10 +189,10 @@ function mergeCardAndRecordSources(records: WineRecord[]): Map<
   return map;
 }
 
-export function seedDemoHistoryIfEmpty(records: WineRecord[]): void {
+export async function seedDemoHistoryIfEmpty(records: WineRecord[]): Promise<void> {
   const flag = localStorage.getItem(SEED_HISTORY_FLAG);
   if (flag === "1") return;
-  const existing = loadRawHistory();
+  const existing = await getAllSessions();
   if (existing.length > 0) {
     localStorage.setItem(SEED_HISTORY_FLAG, "1");
     return;
@@ -352,12 +354,14 @@ export function seedDemoHistoryIfEmpty(records: WineRecord[]): void {
     }
   }
 
-  saveRawHistory(sessions);
+  await saveQuizSession(sessions[0]);
+  if (sessions.length > 1) await saveQuizSession(sessions[1]);
+  if (sessions.length > 2) await saveQuizSession(sessions[2]);
   localStorage.setItem(SEED_HISTORY_FLAG, "1");
 }
 
-export function computeWineStats(records: WineRecord[]): Map<string, WineStats> {
-  const sessions = getAllSessions();
+export async function computeWineStats(records: WineRecord[]): Promise<Map<string, WineStats>> {
+  const sessions = await getAllSessions();
   const sources = mergeCardAndRecordSources(records);
   const statsMap = new Map<string, WineStats>();
 
@@ -427,8 +431,8 @@ export function computeWineStats(records: WineRecord[]): Map<string, WineStats> 
   return statsMap;
 }
 
-export function computeConfusionPairs(records: WineRecord[]): ConfusionPair[] {
-  const sessions = getAllSessions();
+export async function computeConfusionPairs(records: WineRecord[]): Promise<ConfusionPair[]> {
+  const sessions = await getAllSessions();
   const sources = mergeCardAndRecordSources(records);
   const pairMap = new Map<string, ConfusionPair>();
 
@@ -494,9 +498,9 @@ export function computeConfusionPairs(records: WineRecord[]): ConfusionPair[] {
   );
 }
 
-export function prioritizeWines(records: WineRecord[]): PrioritizedWine[] {
-  const statsMap = computeWineStats(records);
-  const confusionPairs = computeConfusionPairs(records);
+export async function prioritizeWines(records: WineRecord[]): Promise<PrioritizedWine[]> {
+  const statsMap = await computeWineStats(records);
+  const confusionPairs = await computeConfusionPairs(records);
   const confusionLinks = new Map<string, number>();
 
   for (const pair of confusionPairs) {
@@ -693,11 +697,11 @@ export function prioritizeWines(records: WineRecord[]): PrioritizedWine[] {
   return prioritized;
 }
 
-export function buildAdaptiveDashboard(records: WineRecord[]): AdaptiveDashboardData {
-  seedDemoHistoryIfEmpty(records);
-  const prioritizedWines = prioritizeWines(records);
-  const confusionPairs = computeConfusionPairs(records);
-  const sessions = getAllSessions();
+export async function buildAdaptiveDashboard(records: WineRecord[]): Promise<AdaptiveDashboardData> {
+  await seedDemoHistoryIfEmpty(records);
+  const prioritizedWines = await prioritizeWines(records);
+  const confusionPairs = await computeConfusionPairs(records);
+  const sessions = await getAllSessions();
 
   const allAttempts = sessions.flatMap((s) => s.attempts);
   const totalAttempts = allAttempts.length;
@@ -775,20 +779,20 @@ export function buildAdaptiveDashboard(records: WineRecord[]): AdaptiveDashboard
   };
 }
 
-export function clearAllHistory(): void {
-  localStorage.removeItem(HISTORY_STORAGE_KEY);
+export async function clearAllHistory(): Promise<void> {
+  await unifiedResetPractice();
   localStorage.removeItem(SEED_HISTORY_FLAG);
 }
 
-export function weightedSampleCards(
+export async function weightedSampleCards(
   pool: WineCard[],
   count: number,
   records: WineRecord[]
-): WineCard[] {
+): Promise<WineCard[]> {
   if (pool.length === 0) return [];
   const effective = Math.min(count, pool.length);
 
-  const prioritized = prioritizeWines(records);
+  const prioritized = await prioritizeWines(records);
   const weightMap = new Map<string, number>();
   for (const pw of prioritized) {
     if (pw.stats.source === "wineCard") {
@@ -824,15 +828,15 @@ export function weightedSampleCards(
   return result;
 }
 
-export function weightedSampleRecords(
+export async function weightedSampleRecords(
   pool: WineRecord[],
   count: number,
   records: WineRecord[]
-): WineRecord[] {
+): Promise<WineRecord[]> {
   if (pool.length === 0) return [];
   const effective = Math.min(count, pool.length);
 
-  const prioritized = prioritizeWines(records);
+  const prioritized = await prioritizeWines(records);
   const weightMap = new Map<string, number>();
   for (const pw of prioritized) {
     if (pw.stats.source === "wineRecord") {
@@ -868,12 +872,14 @@ export function weightedSampleRecords(
   return result;
 }
 
+export type ReviewStage = "today" | "three-days" | "one-week";
+
 export type GenerationScope = "highPriority" | "unpracticed" | "weakRegions";
 
 export interface GenerationOptions {
   scopes: GenerationScope[];
   count: number;
-  includeStages?: ("today" | "three-days" | "one-week")[];
+  includeStages?: ReviewStage[];
 }
 
 export interface AdaptiveReviewTask {
@@ -885,7 +891,7 @@ export interface AdaptiveReviewTask {
   grape: string;
   aromas: string[];
   characteristic: string;
-  stage: "today" | "three-days" | "one-week";
+  stage: ReviewStage;
   scheduledDate: string;
   completed: boolean;
   completedAt: number | null;
@@ -913,48 +919,40 @@ function addDaysToKey(baseKey: string, days: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function loadAdaptiveTasks(): AdaptiveReviewTaskBundle | null {
-  try {
-    const raw = localStorage.getItem(ADAPTIVE_REVIEW_TASKS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AdaptiveReviewTaskBundle;
-    if (parsed.dateKey !== getTodayKey()) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+async function loadAdaptiveTasks(): Promise<AdaptiveReviewTaskBundle | null> {
+  const todayKey = getTodayKey();
+  const bundle = await unifiedLoadTaskBundle(todayKey);
+  if (!bundle) return null;
+  return bundle as unknown as AdaptiveReviewTaskBundle;
 }
 
-function saveAdaptiveTasks(bundle: AdaptiveReviewTaskBundle): void {
-  try {
-    localStorage.setItem(ADAPTIVE_REVIEW_TASKS_KEY, JSON.stringify(bundle));
-  } catch {
-  }
+async function saveAdaptiveTasks(bundle: AdaptiveReviewTaskBundle): Promise<void> {
+  await unifiedSaveTaskBundle(bundle as unknown as AdaptiveTaskBundle);
 }
 
-export function getAdaptiveReviewTasks(): AdaptiveReviewTask[] {
-  const bundle = loadAdaptiveTasks();
+export async function getAdaptiveReviewTasks(): Promise<AdaptiveReviewTask[]> {
+  const bundle = await loadAdaptiveTasks();
   return bundle ? bundle.tasks : [];
 }
 
-export function clearAdaptiveReviewTasks(): void {
-  localStorage.removeItem(ADAPTIVE_REVIEW_TASKS_KEY);
+export async function clearAdaptiveReviewTasks(): Promise<void> {
+  await unifiedClearTaskBundles();
 }
 
-export function toggleAdaptiveTaskCompleted(taskId: string): boolean {
-  const bundle = loadAdaptiveTasks();
+export async function toggleAdaptiveTaskCompleted(taskId: string): Promise<boolean> {
+  const bundle = await loadAdaptiveTasks();
   if (!bundle) return false;
   const task = bundle.tasks.find((t) => t.id === taskId);
   if (!task) return false;
   task.completed = !task.completed;
   task.completedAt = task.completed ? Date.now() : null;
-  saveAdaptiveTasks(bundle);
+  await saveAdaptiveTasks(bundle);
   syncBundleToProfile(bundle).catch(() => {});
   return task.completed;
 }
 
 export async function syncAdaptiveTasksToProfile(): Promise<number> {
-  const bundle = loadAdaptiveTasks();
+  const bundle = await loadAdaptiveTasks();
   if (!bundle) return 0;
   try {
     return await syncBundleToProfile(bundle);
@@ -985,11 +983,11 @@ export interface GenerationResult {
   counts: Record<GenerationScope, number>;
 }
 
-export function generateTodayReviewPlan(
+export async function generateTodayReviewPlan(
   records: WineRecord[],
   options: GenerationOptions
-): GenerationResult {
-  const dashboard = buildAdaptiveDashboard(records);
+): Promise<GenerationResult> {
+  const dashboard = await buildAdaptiveDashboard(records);
   const { prioritizedWines, overallStats } = dashboard;
   const maxWeight = prioritizedWines[0]?.finalWeight ?? 1;
 
@@ -1000,8 +998,8 @@ export function generateTodayReviewPlan(
     weakRegions: 0,
   };
 
-  const scopes = options.scopes.length > 0 ? options.scopes : ["highPriority"];
-  const stages = options.includeStages?.length > 0 ? options.includeStages : ["today"];
+  const scopes: GenerationScope[] = options.scopes.length > 0 ? options.scopes : ["highPriority"];
+  const stages: ReviewStage[] = (options.includeStages?.length ?? 0) > 0 ? options.includeStages! : ["today"];
 
   if (scopes.includes("highPriority")) {
     const highPriorityWines = prioritizedWines.filter((w) => {
@@ -1093,7 +1091,7 @@ export function generateTodayReviewPlan(
     dateKey: todayKey,
     tasks,
   };
-  saveAdaptiveTasks(bundle);
+  await saveAdaptiveTasks(bundle);
   syncBundleToProfile(bundle).catch(() => {});
 
   return { tasks, counts };
@@ -1103,8 +1101,8 @@ export async function generateTodayReviewPlanAsync(
   records: WineRecord[],
   options: GenerationOptions
 ): Promise<GenerationResult> {
-  const result = generateTodayReviewPlan(records, options);
-  const bundle = loadAdaptiveTasks();
+  const result = await generateTodayReviewPlan(records, options);
+  const bundle = await loadAdaptiveTasks();
   if (bundle) {
     try {
       await syncBundleToProfile(bundle);
@@ -1225,12 +1223,12 @@ function categorizeRecordsByAroma(
   return map;
 }
 
-export function smartPickRecords(
+export async function smartPickRecords(
   allRecords: WineRecord[],
   count: number,
   config: SmartPickConfig,
   aromaKeywordsData: { name: string; category: string }[]
-): SmartPickResult {
+): Promise<SmartPickResult> {
   if (allRecords.length === 0 || count <= 0) {
     return {
       records: [],
@@ -1242,7 +1240,7 @@ export function smartPickRecords(
   }
 
   const effectiveCount = Math.min(count, allRecords.length);
-  const rawStrategies = config.strategies.length > 0 ? config.strategies : ["regionCoverage"];
+  const rawStrategies: SmartPickStrategy[] = config.strategies.length > 0 ? config.strategies : ["regionCoverage"];
   const STRATEGY_PRIORITY: SmartPickStrategy[] = ["weakGrape", "recentUnpracticed", "regionCoverage", "aromaCategory"];
   const strategies = [...rawStrategies].sort((a, b) => STRATEGY_PRIORITY.indexOf(a) - STRATEGY_PRIORITY.indexOf(b));
   const recordsById = new Map(allRecords.map((r) => [r.id, r]));
@@ -1263,8 +1261,8 @@ export function smartPickRecords(
     normalizedRatios[st] = totalRatio > 0 ? strategyRatios[st] / totalRatio : 1 / strategies.length;
   }
 
-  const statsMapAll = computeWineStats(allRecords);
-  const prioritized = prioritizeWines(allRecords);
+  const statsMapAll = await computeWineStats(allRecords);
+  const prioritized = await prioritizeWines(allRecords);
   const weightMap = new Map<string, PrioritizedWine>();
   for (const pw of prioritized) {
     if (pw.stats.source === "wineRecord") {

@@ -15,6 +15,7 @@ import {
 import { WineRecord } from "../data/wineRecordTypes";
 import { syncQuizSessionToProfile } from "../data/learningProfileSync";
 import { checkRegionAnswer, checkGrapeAnswer, MatchResult } from "../data/answerChecker";
+import { initUnifiedStore } from "../data/unifiedStore";
 
 type QuizPhase = "setup" | "quiz" | "result";
 
@@ -106,8 +107,8 @@ export default function BlindQuiz({ onAromaClick, records, onProfileSynced }: Bl
     };
   }, [phase, startTime]);
 
-  const startQuiz = useCallback(() => {
-    const picked = weightedSampleCards(pool, effectiveCount, records);
+  const startQuiz = useCallback(async () => {
+    const picked = await weightedSampleCards(pool, effectiveCount, records);
     const now = Date.now();
     setQuestions(
       picked.map((card) => ({
@@ -246,7 +247,7 @@ export default function BlindQuiz({ onAromaClick, records, onProfileSynced }: Bl
       attempts,
       overallAccuracy: computed.length > 0 ? correctCount / computed.length : 0,
     };
-    saveQuizSession(session);
+    await saveQuizSession(session);
     await syncQuizSessionToProfile(session, records);
     onProfileSynced?.();
 

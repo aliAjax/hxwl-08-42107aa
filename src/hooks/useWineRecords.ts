@@ -7,6 +7,7 @@ import {
   deleteRecord,
   seedDatabaseIfEmpty,
 } from "../data/wineRecordDB";
+import { initUnifiedStore } from "../data/unifiedStore";
 
 interface UseWineRecordsReturn {
   records: WineRecord[];
@@ -27,6 +28,7 @@ export function useWineRecords(): UseWineRecordsReturn {
     try {
       setLoading(true);
       setError(null);
+      await initUnifiedStore();
       const data = await seedDatabaseIfEmpty();
       setRecords(data);
     } catch (err) {

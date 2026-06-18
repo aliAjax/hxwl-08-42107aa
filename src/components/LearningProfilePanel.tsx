@@ -12,10 +12,10 @@ import {
 import { exportProfile, importProfile, formatImportSummary, parseImportPreview, applyImportPreview } from "../data/learningProfileIO";
 import { BlindTastingRecord, QuizResultRecord, ReviewPlanRecord, ConfusionItem, RollbackSnapshot } from "../data/learningProfileTypes";
 import {
-  migrateExistingDataToProfile,
+  migrateExistingDataToStore,
   hasMigratedProfile,
-  MigrationResult,
-} from "../data/learningProfileSync";
+  MigrationResult as UnifiedMigrationResult,
+} from "../data/unifiedStore";
 import { WineRecord } from "../data/wineRecordTypes";
 
 interface LearningProfilePanelProps {
@@ -62,7 +62,7 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
   const [migrating, setMigrating] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
-  const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
+  const [migrationResult, setMigrationResult] = useState<UnifiedMigrationResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null);
   const [showRollbackList, setShowRollbackList] = useState(false);
@@ -100,14 +100,15 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
 
   useEffect(() => {
     refreshData();
-    setIsMigrated(hasMigratedProfile());
+    hasMigratedProfile().then(setIsMigrated);
   }, [refreshData, refreshSignal]);
 
   useEffect(() => {
-    const shouldAutoMigrate = !hasMigratedProfile() && stats.totalRecords === 0;
-    if (shouldAutoMigrate && records.length > 0) {
-      handleMigrate(true);
-    }
+    hasMigratedProfile().then((migrated) => {
+      if (!migrated && stats.totalRecords === 0 && records.length > 0) {
+        handleMigrate(true);
+      }
+    });
   }, [records]);
 
   const handleMigrate = useCallback(
@@ -116,7 +117,7 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
       setMigrating(true);
       setMigrationResult(null);
       try {
-        const result = await migrateExistingDataToProfile(records, true);
+        const result = await migrateExistingDataToStore(records, true);
         if (!silent) {
           setMigrationResult(result);
         }
@@ -327,10 +328,11 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
           </div>
           <p className="migration-text">
             已从本地历史同步：
-            {migrationResult.quizResults > 0 && ` ${migrationResult.quizResults} 场测验`}
-            {migrationResult.blindTastingRecords > 0 && ` · ${migrationResult.blindTastingRecords} 条盲品记录`}
-            {migrationResult.confusionItems > 0 && ` · ${migrationResult.confusionItems} 个混淆项`}
-            {migrationResult.quizResults === 0 && migrationResult.blindTastingRecords === 0 && " 暂无历史数据可同步"}
+            {migrationResult.quizResultsMigrated > 0 && ` ${migrationResult.quizResultsMigrated} 场测验`}
+            {migrationResult.blindTastingsMigrated > 0 && ` · ${migrationResult.blindTastingsMigrated} 条盲品记录`}
+            {migrationResult.confusionItemsMigrated > 0 && ` · ${migrationResult.confusionItemsMigrated} 个混淆项`}
+            {migrationResult.wineRecordsMigrated > 0 && ` · ${migrationResult.wineRecordsMigrated} 条酒款记录`}
+            {migrationResult.quizResultsMigrated === 0 && migrationResult.blindTastingsMigrated === 0 && migrationResult.wineRecordsMigrated === 0 && " 暂无历史数据可同步"}
           </p>
         </div>
       )}
