@@ -91,3 +91,20 @@ export interface ImportOptions {
   mode: ImportMode;
   handleDuplicates: ImportMode;
 }
+
+export interface RecordCategoryPreview<T> {
+  totalInFile: number;
+  toAdd: T[];
+  duplicateIds: string[];
+  invalidCount: number;
+}
+
+export interface ImportPreview {
+  duplicateMode: ImportMode;
+  totalRecordsInFile: number;
+  blindTasting: RecordCategoryPreview<BlindTastingRecord>;
+  quizResults: RecordCategoryPreview<QuizResultRecord>;
+  reviewPlans: RecordCategoryPreview<ReviewPlanRecord>;
+  confusionItems: RecordCategoryPreview<ConfusionItem>;
+  migratedFields: string[];
+}

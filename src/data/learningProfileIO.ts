@@ -6,6 +6,8 @@ import {
   ConfusionItem,
   ImportSummary,
   ImportMode,
+  ImportPreview,
+  RecordCategoryPreview,
   PROFILE_SCHEMA_VERSION,
 } from "./learningProfileTypes";
 import {
@@ -202,17 +204,17 @@ function deduplicateById<T extends { id: string }>(
   incoming: T[],
   existing: T[],
   mode: ImportMode
-): { toAdd: T[]; duplicates: number } {
+): { toAdd: T[]; duplicateIds: string[] } {
   const existingIds = new Set(existing.map((e) => e.id));
-  const duplicateCount = incoming.filter((item) => existingIds.has(item.id)).length;
+  const duplicateIds = incoming.filter((item) => existingIds.has(item.id)).map((item) => item.id);
 
   if (mode === "skip") {
     const toAdd = incoming.filter((item) => !existingIds.has(item.id));
-    return { toAdd, duplicates: duplicateCount };
+    return { toAdd, duplicateIds };
   }
 
   if (mode === "overwrite") {
-    return { toAdd: incoming, duplicates: duplicateCount };
+    return { toAdd: incoming, duplicateIds };
   }
 
   const toAdd = incoming.map((item) => {
@@ -221,13 +223,13 @@ function deduplicateById<T extends { id: string }>(
     }
     return item;
   });
-  return { toAdd, duplicates: duplicateCount };
+  return { toAdd, duplicateIds };
 }
 
-export async function importProfile(
+export async function parseImportPreview(
   jsonString: string,
   duplicateMode: ImportMode = "merge"
-): Promise<ImportSummary> {
+): Promise<ImportPreview> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonString);
@@ -252,7 +254,7 @@ export async function importProfile(
   let blindInvalid = 0;
   for (const raw of rawBlind) {
     if (isValidBlindTastingRecord(raw)) {
-      const migrated = migrateBlindTastingRecord(raw as Record<string, unknown>);
+      const migrated = migrateBlindTastingRecord(raw as unknown as Record<string, unknown>);
       const mf = (migrated as unknown as { _migratedFields?: string[] })._migratedFields;
       if (mf) allMigratedFields.push(...mf);
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & BlindTastingRecord;
@@ -266,7 +268,7 @@ export async function importProfile(
   let quizInvalid = 0;
   for (const raw of rawQuiz) {
     if (isValidQuizResultRecord(raw)) {
-      const migrated = migrateQuizResultRecord(raw as Record<string, unknown>);
+      const migrated = migrateQuizResultRecord(raw as unknown as Record<string, unknown>);
       const mf = (migrated as unknown as { _migratedFields?: string[] })._migratedFields;
       if (mf) allMigratedFields.push(...mf);
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & QuizResultRecord;
@@ -280,7 +282,7 @@ export async function importProfile(
   let reviewInvalid = 0;
   for (const raw of rawReview) {
     if (isValidReviewPlanRecord(raw)) {
-      const migrated = migrateReviewPlanRecord(raw as Record<string, unknown>);
+      const migrated = migrateReviewPlanRecord(raw as unknown as Record<string, unknown>);
       const mf = (migrated as unknown as { _migratedFields?: string[] })._migratedFields;
       if (mf) allMigratedFields.push(...mf);
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & ReviewPlanRecord;
@@ -294,7 +296,7 @@ export async function importProfile(
   let confusionInvalid = 0;
   for (const raw of rawConfusion) {
     if (isValidConfusionItem(raw)) {
-      const migrated = migrateConfusionItem(raw as Record<string, unknown>);
+      const migrated = migrateConfusionItem(raw as unknown as Record<string, unknown>);
       const mf = (migrated as unknown as { _migratedFields?: string[] })._migratedFields;
       if (mf) allMigratedFields.push(...mf);
       const { _migratedFields, ...clean } = migrated as unknown as { _migratedFields: string[] } & ConfusionItem;
@@ -303,8 +305,6 @@ export async function importProfile(
       confusionInvalid++;
     }
   }
-
-  await takeRollbackSnapshot();
 
   const existingBlind = await getAllBlindTastingRecords();
   const existingQuiz = await getAllQuizResults();
@@ -316,31 +316,81 @@ export async function importProfile(
   const reviewResult = deduplicateById(validatedReview, existingReview, duplicateMode);
   const confusionResult = deduplicateById(validatedConfusion, existingConfusion, duplicateMode);
 
-  if (blindResult.toAdd.length > 0) await putBlindTastingRecords(blindResult.toAdd);
-  if (quizResult.toAdd.length > 0) await putQuizResults(quizResult.toAdd);
-  if (reviewResult.toAdd.length > 0) await putReviewPlans(reviewResult.toAdd);
-  if (confusionResult.toAdd.length > 0) await putConfusionItems(confusionResult.toAdd);
-
   const uniqueMigratedFields = [...new Set(allMigratedFields)];
 
-  return {
-    totalRecordsInFile: rawBlind.length + rawQuiz.length + rawReview.length + rawConfusion.length,
-    blindTastingImported: blindResult.toAdd.length,
-    blindTastingDuplicates: blindResult.duplicates,
-    blindTastingInvalid: blindInvalid,
-    quizResultsImported: quizResult.toAdd.length,
-    quizResultsDuplicates: quizResult.duplicates,
-    quizResultsInvalid: quizInvalid,
-    reviewPlansImported: reviewResult.toAdd.length,
-    reviewPlansDuplicates: reviewResult.duplicates,
-    reviewPlansInvalid: reviewInvalid,
-    confusionItemsImported: confusionResult.toAdd.length,
-    confusionItemsDuplicates: confusionResult.duplicates,
-    confusionItemsInvalid: confusionInvalid,
-    migratedFields: uniqueMigratedFields,
-    rollbackAvailable: true,
-    duplicateMode,
+  const blindPreview: RecordCategoryPreview<BlindTastingRecord> = {
+    totalInFile: rawBlind.length,
+    toAdd: blindResult.toAdd,
+    duplicateIds: blindResult.duplicateIds,
+    invalidCount: blindInvalid,
   };
+
+  const quizPreview: RecordCategoryPreview<QuizResultRecord> = {
+    totalInFile: rawQuiz.length,
+    toAdd: quizResult.toAdd,
+    duplicateIds: quizResult.duplicateIds,
+    invalidCount: quizInvalid,
+  };
+
+  const reviewPreview: RecordCategoryPreview<ReviewPlanRecord> = {
+    totalInFile: rawReview.length,
+    toAdd: reviewResult.toAdd,
+    duplicateIds: reviewResult.duplicateIds,
+    invalidCount: reviewInvalid,
+  };
+
+  const confusionPreview: RecordCategoryPreview<ConfusionItem> = {
+    totalInFile: rawConfusion.length,
+    toAdd: confusionResult.toAdd,
+    duplicateIds: confusionResult.duplicateIds,
+    invalidCount: confusionInvalid,
+  };
+
+  return {
+    duplicateMode,
+    totalRecordsInFile: rawBlind.length + rawQuiz.length + rawReview.length + rawConfusion.length,
+    blindTasting: blindPreview,
+    quizResults: quizPreview,
+    reviewPlans: reviewPreview,
+    confusionItems: confusionPreview,
+    migratedFields: uniqueMigratedFields,
+  };
+}
+
+export async function applyImportPreview(preview: ImportPreview): Promise<ImportSummary> {
+  await takeRollbackSnapshot();
+
+  if (preview.blindTasting.toAdd.length > 0) await putBlindTastingRecords(preview.blindTasting.toAdd);
+  if (preview.quizResults.toAdd.length > 0) await putQuizResults(preview.quizResults.toAdd);
+  if (preview.reviewPlans.toAdd.length > 0) await putReviewPlans(preview.reviewPlans.toAdd);
+  if (preview.confusionItems.toAdd.length > 0) await putConfusionItems(preview.confusionItems.toAdd);
+
+  return {
+    totalRecordsInFile: preview.totalRecordsInFile,
+    blindTastingImported: preview.blindTasting.toAdd.length,
+    blindTastingDuplicates: preview.blindTasting.duplicateIds.length,
+    blindTastingInvalid: preview.blindTasting.invalidCount,
+    quizResultsImported: preview.quizResults.toAdd.length,
+    quizResultsDuplicates: preview.quizResults.duplicateIds.length,
+    quizResultsInvalid: preview.quizResults.invalidCount,
+    reviewPlansImported: preview.reviewPlans.toAdd.length,
+    reviewPlansDuplicates: preview.reviewPlans.duplicateIds.length,
+    reviewPlansInvalid: preview.reviewPlans.invalidCount,
+    confusionItemsImported: preview.confusionItems.toAdd.length,
+    confusionItemsDuplicates: preview.confusionItems.duplicateIds.length,
+    confusionItemsInvalid: preview.confusionItems.invalidCount,
+    migratedFields: preview.migratedFields,
+    rollbackAvailable: true,
+    duplicateMode: preview.duplicateMode,
+  };
+}
+
+export async function importProfile(
+  jsonString: string,
+  duplicateMode: ImportMode = "merge"
+): Promise<ImportSummary> {
+  const preview = await parseImportPreview(jsonString, duplicateMode);
+  return applyImportPreview(preview);
 }
 
 export function formatImportSummary(summary: ImportSummary): string {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ImportSummary, ImportMode } from "../data/learningProfileTypes";
+import { ImportSummary, ImportMode, ImportPreview } from "../data/learningProfileTypes";
 import {
   getAllBlindTastingRecords,
   getAllQuizResults,
@@ -9,7 +9,7 @@ import {
   executeRollback,
   deleteRollbackSnapshot,
 } from "../data/learningProfileDB";
-import { exportProfile, importProfile, formatImportSummary } from "../data/learningProfileIO";
+import { exportProfile, importProfile, formatImportSummary, parseImportPreview, applyImportPreview } from "../data/learningProfileIO";
 import { BlindTastingRecord, QuizResultRecord, ReviewPlanRecord, ConfusionItem, RollbackSnapshot } from "../data/learningProfileTypes";
 import {
   migrateExistingDataToProfile,
@@ -61,6 +61,7 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
   const [exporting, setExporting] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [confirmRollbackId, setConfirmRollbackId] = useState<string | null>(null);
@@ -162,12 +163,12 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
       setImporting(true);
       setImportError(null);
       setImportSummary(null);
+      setImportPreview(null);
 
       try {
         const text = await file.text();
-        const summary = await importProfile(text, importMode);
-        setImportSummary(summary);
-        await refreshData();
+        const preview = await parseImportPreview(text, importMode);
+        setImportPreview(preview);
       } catch (err) {
         setImportError(err instanceof Error ? err.message : "导入失败");
       } finally {
@@ -175,8 +176,28 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [importMode, refreshData]
+    [importMode]
   );
+
+  const handleConfirmImport = useCallback(async () => {
+    if (!importPreview) return;
+    setImporting(true);
+    try {
+      const summary = await applyImportPreview(importPreview);
+      setImportSummary(summary);
+      setImportPreview(null);
+      await refreshData();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "导入失败");
+    } finally {
+      setImporting(false);
+    }
+  }, [importPreview, refreshData]);
+
+  const handleCancelPreview = useCallback(() => {
+    setImportPreview(null);
+    setImportError(null);
+  }, []);
 
   const handleRollback = useCallback(
     async (snapshotId: string) => {
@@ -311,6 +332,157 @@ export default function LearningProfilePanel({ records = [], refreshSignal = 0 }
             {migrationResult.confusionItems > 0 && ` · ${migrationResult.confusionItems} 个混淆项`}
             {migrationResult.quizResults === 0 && migrationResult.blindTastingRecords === 0 && " 暂无历史数据可同步"}
           </p>
+        </div>
+      )}
+
+      {importPreview && (
+        <div className="profile-import-preview">
+          <div className="import-summary-header">
+            <span className="import-summary-icon">📋</span>
+            <h4>导入预览</h4>
+          </div>
+          <p className="preview-total">文件共包含 <strong>{importPreview.totalRecordsInFile}</strong> 条记录</p>
+
+          <div className="preview-categories">
+            {importPreview.blindTasting.totalInFile > 0 && (
+              <div className="preview-category-card">
+                <h5>盲品记录</h5>
+                <ul>
+                  <li><span className="label">文件中：</span><span>{importPreview.blindTasting.totalInFile} 条</span></li>
+                  <li><span className="label success">将新增：</span><span className="success">{importPreview.blindTasting.toAdd.length} 条</span></li>
+                  <li><span className="label warning">重复：</span><span className="warning">{importPreview.blindTasting.duplicateIds.length} 条</span></li>
+                  <li><span className="label danger">无效：</span><span className="danger">{importPreview.blindTasting.invalidCount} 条</span></li>
+                </ul>
+                {importPreview.blindTasting.toAdd.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看将新增的 {importPreview.blindTasting.toAdd.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.blindTasting.toAdd.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record">
+                          <strong>{r.wineName}</strong>
+                          <span className="preview-record-meta">{r.region} · {r.grape}</span>
+                        </div>
+                      ))}
+                      {importPreview.blindTasting.toAdd.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.blindTasting.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+                {importPreview.blindTasting.duplicateIds.length > 0 && (
+                  <p className="preview-dupes">重复 ID：{importPreview.blindTasting.duplicateIds.slice(0, 5).join(", ")}{importPreview.blindTasting.duplicateIds.length > 5 ? ` ...等 ${importPreview.blindTasting.duplicateIds.length} 个` : ""}</p>
+                )}
+              </div>
+            )}
+
+            {importPreview.quizResults.totalInFile > 0 && (
+              <div className="preview-category-card">
+                <h5>测验结果</h5>
+                <ul>
+                  <li><span className="label">文件中：</span><span>{importPreview.quizResults.totalInFile} 条</span></li>
+                  <li><span className="label success">将新增：</span><span className="success">{importPreview.quizResults.toAdd.length} 条</span></li>
+                  <li><span className="label warning">重复：</span><span className="warning">{importPreview.quizResults.duplicateIds.length} 条</span></li>
+                  <li><span className="label danger">无效：</span><span className="danger">{importPreview.quizResults.invalidCount} 条</span></li>
+                </ul>
+                {importPreview.quizResults.toAdd.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看将新增的 {importPreview.quizResults.toAdd.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.quizResults.toAdd.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record">
+                          <strong>场次 {r.sessionId.slice(0, 8)}</strong>
+                          <span className="preview-record-meta">{r.correctCount}/{r.totalQuestions} 正确 · {Math.round(r.accuracy * 100)}%</span>
+                        </div>
+                      ))}
+                      {importPreview.quizResults.toAdd.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.quizResults.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {importPreview.reviewPlans.totalInFile > 0 && (
+              <div className="preview-category-card">
+                <h5>复习计划</h5>
+                <ul>
+                  <li><span className="label">文件中：</span><span>{importPreview.reviewPlans.totalInFile} 条</span></li>
+                  <li><span className="label success">将新增：</span><span className="success">{importPreview.reviewPlans.toAdd.length} 条</span></li>
+                  <li><span className="label warning">重复：</span><span className="warning">{importPreview.reviewPlans.duplicateIds.length} 条</span></li>
+                  <li><span className="label danger">无效：</span><span className="danger">{importPreview.reviewPlans.invalidCount} 条</span></li>
+                </ul>
+                {importPreview.reviewPlans.toAdd.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看将新增的 {importPreview.reviewPlans.toAdd.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.reviewPlans.toAdd.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record">
+                          <strong>{r.wineName}</strong>
+                          <span className="preview-record-meta">{r.grape} · {r.scheduledDate} · {r.completed ? "已完成" : "待复习"}</span>
+                        </div>
+                      ))}
+                      {importPreview.reviewPlans.toAdd.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.reviewPlans.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
+            {importPreview.confusionItems.totalInFile > 0 && (
+              <div className="preview-category-card">
+                <h5>混淆项</h5>
+                <ul>
+                  <li><span className="label">文件中：</span><span>{importPreview.confusionItems.totalInFile} 条</span></li>
+                  <li><span className="label success">将新增：</span><span className="success">{importPreview.confusionItems.toAdd.length} 条</span></li>
+                  <li><span className="label warning">重复：</span><span className="warning">{importPreview.confusionItems.duplicateIds.length} 条</span></li>
+                  <li><span className="label danger">无效：</span><span className="danger">{importPreview.confusionItems.invalidCount} 条</span></li>
+                </ul>
+                {importPreview.confusionItems.toAdd.length > 0 && (
+                  <details className="preview-details">
+                    <summary>查看将新增的 {importPreview.confusionItems.toAdd.length} 条记录</summary>
+                    <div className="preview-records">
+                      {importPreview.confusionItems.toAdd.slice(0, 10).map((r) => (
+                        <div key={r.id} className="preview-record">
+                          <strong>{r.wineA.region} ⇄ {r.wineB.region}</strong>
+                          <span className="preview-record-meta">{r.wineA.grape} / {r.wineB.grape} · {r.confusionCount}次互混</span>
+                        </div>
+                      ))}
+                      {importPreview.confusionItems.toAdd.length > 10 && (
+                        <p className="preview-more">...还有 {importPreview.confusionItems.toAdd.length - 10} 条</p>
+                      )}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+
+          {importPreview.migratedFields.length > 0 && (
+            <div className="preview-migrated">
+              <span className="label">自动补全字段：</span>
+              <span>{importPreview.migratedFields.join("、")}</span>
+            </div>
+          )}
+
+          <div className="preview-actions">
+            <button
+              className="primary-action"
+              onClick={handleConfirmImport}
+              disabled={importing}
+            >
+              {importing ? "导入中..." : "确认导入"}
+            </button>
+            <button
+              className="secondary-action"
+              onClick={handleCancelPreview}
+              disabled={importing}
+            >
+              取消
+            </button>
+          </div>
         </div>
       )}
 
