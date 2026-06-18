@@ -63,6 +63,15 @@ function App() {
     setReviewPlanRefreshSignal((s) => s + 1);
   }, []);
 
+  const handleReviewPlanGenerated = useCallback(() => {
+    setReviewPlanRefreshSignal((s) => s + 1);
+    setProfileRefreshSignal((s) => s + 1);
+  }, []);
+
+  const handleReviewTaskStatusChanged = useCallback(() => {
+    setProfileRefreshSignal((s) => s + 1);
+  }, []);
+
   const { records, loading, error, addRecord, updateRecord, deleteRecord } = useWineRecords();
 
   const [formState, setFormState] = useState<{
@@ -383,7 +392,7 @@ function App() {
         records={records}
         onAromaClick={handleAromaClick}
         onRefreshSignal={dashboardRefreshSignal}
-        onReviewPlanGenerated={triggerReviewPlanRefresh}
+        onReviewPlanGenerated={handleReviewPlanGenerated}
       />
 
       {selectedRegionKey ? (
@@ -592,7 +601,7 @@ function App() {
         </div>
       </section>
 
-      <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} refreshSignal={reviewPlanRefreshSignal} />
+      <ReviewPlan records={reviewRecords} onAromaClick={handleAromaClick} refreshSignal={reviewPlanRefreshSignal} onTaskStatusChanged={handleReviewTaskStatusChanged} />
 
       <WineComparison onAromaClick={handleAromaClick} />
 

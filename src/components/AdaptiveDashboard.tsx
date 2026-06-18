@@ -384,10 +384,12 @@ export default function AdaptiveDashboard({
       {confirmReset && (
         <div
           className="confirm-delete-overlay"
+          style={{ zIndex: 9990 }}
           onClick={() => setConfirmReset(false)}
         >
           <div
             className="confirm-delete-dialog"
+            style={{ zIndex: 9991 }}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
             <h3>确认重置</h3>
@@ -410,11 +412,12 @@ export default function AdaptiveDashboard({
       {showGenerateDialog && (
         <div
           className="confirm-delete-overlay"
+          style={{ zIndex: 9990 }}
           onClick={() => setShowGenerateDialog(false)}
         >
           <div
             className="confirm-delete-dialog"
-            style={{ maxWidth: "560px", width: "92%" }}
+            style={{ maxWidth: "560px", width: "92%", zIndex: 9991 }}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
             <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -618,7 +621,7 @@ export default function AdaptiveDashboard({
             color: "white",
             borderRadius: "10px",
             boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-            zIndex: 9999,
+            zIndex: 10000,
             fontWeight: 500,
             animation: "fadeInUp 0.3s ease",
           }}

@@ -43,6 +43,7 @@ interface ReviewPlanProps {
   records: ReviewRecord[];
   onAromaClick?: (aroma: string) => void;
   refreshSignal?: number;
+  onTaskStatusChanged?: () => void;
 }
 
 const STORAGE_KEY = "hxwl-08-review-status";
@@ -96,6 +97,7 @@ export default function ReviewPlan({
   records,
   onAromaClick,
   refreshSignal,
+  onTaskStatusChanged,
 }: ReviewPlanProps) {
   const [today] = useState(() => startOfDay(new Date()));
   const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>(
@@ -157,8 +159,9 @@ export default function ReviewPlan({
           return next;
         });
       }
+      onTaskStatusChanged?.();
     },
-    [loadAdaptive]
+    [loadAdaptive, onTaskStatusChanged]
   );
 
   const adaptiveTasksByStage = useMemo(() => {
