@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import BlindTastingCard from "./components/BlindTastingCard";
 import BlindQuiz from "./components/BlindQuiz";
 import AromaLexicon from "./components/AromaLexicon";
+import AromaInference from "./components/AromaInference";
 import ReviewPlan, { ReviewRecord } from "./components/ReviewPlan";
 import WineComparison from "./components/WineComparison";
 import WineRecordForm from "./components/WineRecordForm";
@@ -49,6 +50,7 @@ function App() {
   const [profileRefreshSignal, setProfileRefreshSignal] = useState(0);
   const [reviewPlanRefreshSignal, setReviewPlanRefreshSignal] = useState(0);
   const lexiconRef = useRef<HTMLElement>(null);
+  const inferenceRef = useRef<HTMLElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const triggerDashboardRefresh = useCallback(() => {
@@ -410,6 +412,12 @@ function App() {
           onStartExamForRegion={handleStartExamForRegion}
         />
       )}
+
+      <AromaInference
+        ref={inferenceRef}
+        wineRecords={records}
+        onAromaClick={handleAromaClick}
+      />
 
       <AromaLexicon
         ref={lexiconRef}
