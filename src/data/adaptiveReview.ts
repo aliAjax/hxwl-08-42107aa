@@ -942,11 +942,21 @@ export function toggleAdaptiveTaskCompleted(taskId: string): boolean {
   task.completed = !task.completed;
   task.completedAt = task.completed ? Date.now() : null;
   saveAdaptiveTasks(bundle);
-  syncBundleToProfile(bundle);
+  syncBundleToProfile(bundle).catch(() => {});
   return task.completed;
 }
 
-function syncBundleToProfile(bundle: AdaptiveReviewTaskBundle): void {
+export async function syncAdaptiveTasksToProfile(): Promise<number> {
+  const bundle = loadAdaptiveTasks();
+  if (!bundle) return 0;
+  try {
+    return await syncBundleToProfile(bundle);
+  } catch {
+    return 0;
+  }
+}
+
+function syncBundleToProfile(bundle: AdaptiveReviewTaskBundle): Promise<number> {
   const tasksForSync = bundle.tasks.map((t) => {
     const [y, m, d] = t.scheduledDate.split("-").map(Number);
     return {
@@ -960,7 +970,7 @@ function syncBundleToProfile(bundle: AdaptiveReviewTaskBundle): void {
       createdAt: t.createdAt,
     };
   });
-  syncReviewTasksToProfile(tasksForSync).catch(() => {});
+  return syncReviewTasksToProfile(tasksForSync);
 }
 
 export interface GenerationResult {
@@ -1077,9 +1087,24 @@ export function generateTodayReviewPlan(
     tasks,
   };
   saveAdaptiveTasks(bundle);
-  syncBundleToProfile(bundle);
+  syncBundleToProfile(bundle).catch(() => {});
 
   return { tasks, counts };
+}
+
+export async function generateTodayReviewPlanAsync(
+  records: WineRecord[],
+  options: GenerationOptions
+): Promise<GenerationResult> {
+  const result = generateTodayReviewPlan(records, options);
+  const bundle = loadAdaptiveTasks();
+  if (bundle) {
+    try {
+      await syncBundleToProfile(bundle);
+    } catch {
+    }
+  }
+  return result;
 }
 
 function buildCharacteristic(wine: PrioritizedWine): string {

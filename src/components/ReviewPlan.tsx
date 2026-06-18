@@ -3,6 +3,7 @@ import { syncReviewTasksToProfile } from "../data/learningProfileSync";
 import {
   getAdaptiveReviewTasks,
   toggleAdaptiveTaskCompleted,
+  syncAdaptiveTasksToProfile,
   AdaptiveReviewTask,
   scopeLabels,
   GenerationScope,
@@ -144,10 +145,14 @@ export default function ReviewPlan({
   }, [records, today, completedTasks]);
 
   const toggleTask = useCallback(
-    (taskId: string, isAdaptive: boolean = false) => {
+    async (taskId: string, isAdaptive: boolean = false) => {
       if (isAdaptive) {
         toggleAdaptiveTaskCompleted(taskId);
         loadAdaptive();
+        try {
+          await syncAdaptiveTasksToProfile();
+        } catch {
+        }
       } else {
         setCompletedTasks((prev) => {
           const next = { ...prev };

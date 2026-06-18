@@ -8,6 +8,7 @@ import {
   ConfusionPair,
   clearAllHistory,
   generateTodayReviewPlan,
+  generateTodayReviewPlanAsync,
   GenerationScope,
   scopeLabels,
   scopeHints,
@@ -78,6 +79,7 @@ export default function AdaptiveDashboard({
   const [includeStages, setIncludeStages] = useState<("today" | "three-days" | "one-week")[]>(["today"]);
   const [lastGenResult, setLastGenResult] = useState<GenerationResult | null>(null);
   const [toast, setToast] = useState<{ msg: string; tone: "ok" | "info" } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const dashboard: AdaptiveDashboardData = useMemo(() => {
     return buildAdaptiveDashboard(records);
@@ -172,18 +174,35 @@ export default function AdaptiveDashboard({
     []
   );
 
-  const handleGeneratePlan = useCallback(() => {
-    const result = generateTodayReviewPlan(records, {
-      scopes: selectedScopes,
-      count: taskCount,
-      includeStages,
-    });
-    setLastGenResult(result);
-    setShowGenerateDialog(false);
-    onReviewPlanGenerated?.();
-    const scopeSummary = selectedScopes.map((s) => scopeLabels[s]).join("+");
-    showToastMsg(`已生成 ${result.tasks.length} 条复习任务（${scopeSummary}，前${taskCount}个）`, "ok");
-  }, [records, selectedScopes, taskCount, includeStages, onReviewPlanGenerated, showToastMsg]);
+  const handleGeneratePlan = useCallback(async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const result = await generateTodayReviewPlanAsync(records, {
+        scopes: selectedScopes,
+        count: taskCount,
+        includeStages,
+      });
+      setLastGenResult(result);
+      setShowGenerateDialog(false);
+      onReviewPlanGenerated?.();
+      const scopeSummary = selectedScopes.map((s) => scopeLabels[s]).join("+");
+      showToastMsg(
+        `已生成 ${result.tasks.length} 条复习任务（${scopeSummary}，前${taskCount}个）`,
+        "ok"
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [
+    records,
+    selectedScopes,
+    taskCount,
+    includeStages,
+    onReviewPlanGenerated,
+    showToastMsg,
+    isGenerating,
+  ]);
 
   const { overallStats } = dashboard;
 
@@ -412,12 +431,18 @@ export default function AdaptiveDashboard({
       {showGenerateDialog && (
         <div
           className="confirm-delete-overlay"
-          style={{ zIndex: 9990 }}
+          style={{ zIndex: 9990, overflowY: "auto" }}
           onClick={() => setShowGenerateDialog(false)}
         >
           <div
             className="confirm-delete-dialog"
-            style={{ maxWidth: "560px", width: "92%", zIndex: 9991 }}
+            style={{
+              maxWidth: "560px",
+              width: "92%",
+              zIndex: 9991,
+              maxHeight: "calc(100vh - 48px)",
+              overflowY: "auto",
+            }}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
             <h3 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -593,16 +618,18 @@ export default function AdaptiveDashboard({
             )}
 
             <div className="confirm-delete-actions">
-              <button onClick={() => setShowGenerateDialog(false)}>取消</button>
+              <button onClick={() => setShowGenerateDialog(false)} disabled={isGenerating}>
+                取消
+              </button>
               <button
                 className="confirm-delete-btn"
                 style={{
                   background: "linear-gradient(135deg, var(--accent), #7c5cff)",
                 }}
                 onClick={handleGeneratePlan}
-                disabled={selectedScopes.length === 0}
+                disabled={selectedScopes.length === 0 || isGenerating}
               >
-                生成复习计划
+                {isGenerating ? "生成中..." : "生成复习计划"}
               </button>
             </div>
           </div>
