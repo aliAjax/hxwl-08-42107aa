@@ -31,6 +31,8 @@ export interface QuizAttemptDetail {
   mistakeType: MistakeType;
   confusedWithRegion?: string;
   confusedWithGrape?: string;
+  aromas?: string[];
+  userAromas?: string[];
 }
 
 export interface QuizSession {

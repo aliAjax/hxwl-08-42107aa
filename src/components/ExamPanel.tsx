@@ -411,9 +411,9 @@ export default function ExamPanel({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [examMode, selectedRecordIds, smartStrategies, getPickedRecords, examName, questionCount]);
 
-  const startQuizWithInsufficient = useCallback(() => {
+  const startQuizWithInsufficient = useCallback(async () => {
     setInsufficientRecords(null);
-    const picked = getPickedRecords();
+    const picked = await getPickedRecords();
     setQuestions(
       picked.map((record) => ({
         record,

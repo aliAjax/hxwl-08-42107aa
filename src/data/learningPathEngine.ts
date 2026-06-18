@@ -25,6 +25,7 @@ import {
   PrioritizedWine,
   prioritizeWines,
   QuizAttemptDetail,
+  QuizSession,
   getAllSessions,
 } from "./adaptiveReview";
 import { matchRegionKey, REGION_GROUPS } from "./regionStats";
