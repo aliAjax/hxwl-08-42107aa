@@ -7,7 +7,6 @@ import {
   WeightFactor,
   ConfusionPair,
   clearAllHistory,
-  generateTodayReviewPlan,
   generateTodayReviewPlanAsync,
   GenerationScope,
   scopeLabels,

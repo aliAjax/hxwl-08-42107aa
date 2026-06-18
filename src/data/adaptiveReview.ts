@@ -110,6 +110,13 @@ const ATTEMPT_MASTERY_THRESHOLD = 5;
 const ACCURACY_MASTERY_THRESHOLD = 0.9;
 const NOVICE_ATTEMPT_THRESHOLD = 2;
 
+function getWeightLevel(weight: number, maxWeight: number): "high" | "medium" | "low" {
+  const ratio = maxWeight > 0 ? weight / maxWeight : 0;
+  if (ratio >= 0.6) return "high";
+  if (ratio >= 0.3) return "medium";
+  return "low";
+}
+
 function loadRawHistory(): QuizSession[] {
   try {
     const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
