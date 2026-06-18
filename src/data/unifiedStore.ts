@@ -468,9 +468,9 @@ async function migrateFromLegacyIfNeeded(): Promise<MigrationResult> {
     if (rawHistory) {
       const sessions = JSON.parse(rawHistory) as QuizSession[];
       if (Array.isArray(sessions) && sessions.length > 0) {
-        const existingResults = await getAllQuizResults();
+        const existingSessions = await getAllQuizSessions();
         const existingSessionIds = new Set(
-          existingResults.map((r) => r.sessionId)
+          existingSessions.map((s) => s.id)
         );
         const newSessions = sessions.filter(
           (s) => !existingSessionIds.has(s.id)

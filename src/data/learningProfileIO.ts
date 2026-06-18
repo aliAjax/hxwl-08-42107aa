@@ -10,7 +10,7 @@ import {
   PROFILE_SCHEMA_VERSION,
 } from "./learningProfileTypes";
 import {
-  exportProfileOnly as unifiedExport,
+  exportAllData as unifiedExport,
   parseImportPreview as unifiedParsePreview,
   applyImportPreview as unifiedApplyPreview,
   formatImportSummary as unifiedFormatSummary,
