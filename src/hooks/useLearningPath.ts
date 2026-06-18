@@ -46,9 +46,11 @@ interface UseLearningPathReturn {
   getDayPlan: (dayOffset: number) => DailyPlan | null;
 }
 
+const DEFAULT_PATH_OPTIONS: PathGenerationOptions = {};
+
 export function useLearningPath(
   records: WineRecord[],
-  options: PathGenerationOptions = {}
+  options: PathGenerationOptions = DEFAULT_PATH_OPTIONS
 ): UseLearningPathReturn {
   const [learningPath, setLearningPath] = useState<LearningPath | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,10 @@ export function useLearningPath(
   useEffect(() => {
     loadPath();
   }, [loadPath]);
+
+  useEffect(() => {
+    loadPath();
+  }, [records.length, options.daysAhead, options.maxTasksPerDay, loadPath]);
 
   useEffect(() => {
     const unsubscribe = subscribeToPathChanges(() => {

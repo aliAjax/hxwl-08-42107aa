@@ -388,7 +388,9 @@ export async function buildTaskExplanation(
   } else {
     const mistakeAttempts = wineAttempts.filter((a) => a.mistakeType !== "none");
     if (mistakeAttempts.length > 0) {
-      const recentMistake = mistakeAttempts[mistakeAttempts.length - 1];
+      const recentMistake = mistakeAttempts.reduce((latest, attempt) =>
+        attempt.timestamp > latest.timestamp ? attempt : latest
+      );
       const daysAgo = Math.max(0, Math.round((now - recentMistake.timestamp) / 86400000));
       evidences.push({
         type: "mistake_history",
