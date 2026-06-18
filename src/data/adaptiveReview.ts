@@ -1362,7 +1362,7 @@ export function smartPickRecords(
         const bAttempts = bStat?.attempts ?? 0;
         return bAttempts - aAttempts;
       });
-      return pickByWeight(sortedByWeakness, targetCount);
+      return sortedByWeakness.slice(0, targetCount);
     }
 
     if (strategy === "recentUnpracticed") {
@@ -1379,7 +1379,7 @@ export function smartPickRecords(
         if (bDays >= daysThreshold && aDays < daysThreshold) return 1;
         return bDays - aDays;
       });
-      return pickByWeight(sortedByUnpracticed, targetCount);
+      return sortedByUnpracticed.slice(0, targetCount);
     }
 
     if (strategy === "aromaCategory") {
